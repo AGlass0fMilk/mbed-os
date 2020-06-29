@@ -1,5 +1,5 @@
 /* mbed Microcontroller Library
- * Copyright (c) 2006-2019 ARM Limited
+ * Copyright (c) 2006-2020 ARM Limited
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,14 @@
 #include "platform/platform.h"
 
 #include "hal/gpio_api.h"
+
+/**
+ * Option to make certain class functions virtual for advanced polymorphism.
+ * Disabled by default for size and speed optimization.
+ */
+#ifndef MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
+#define MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN false
+#endif
 
 namespace mbed {
 /**
@@ -75,13 +83,28 @@ public:
         gpio_init_in_ex(&gpio, pin, mode);
     }
 
+    /** Class destructor, deinitialize the pin
+     */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
+    virtual ~DigitalIn()
+#else
+    ~DigitalIn()
+#endif
+    {
+        gpio_free(&gpio);
+    }
+
     /** Read the input, represented as 0 or 1 (int)
      *
      *  @returns
      *    An integer representing the state of the input pin,
      *    0 for logical 0, 1 for logical 1
      */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
+    virtual int read()
+#else
     int read()
+#endif
     {
         // Thread safe / atomic HAL call
         return gpio_read(&gpio);
@@ -91,7 +114,11 @@ public:
      *
      *  @param pull PullUp, PullDown, PullNone, OpenDrain
      */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
+    virtual void mode(PinMode pull);
+#else
     void mode(PinMode pull);
+#endif
 
     /** Return the output setting, represented as 0 or 1 (int)
      *
@@ -99,7 +126,11 @@ public:
      *    Non zero value if pin is connected to uc GPIO
      *    0 if gpio object was initialized with NC
      */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
+    virtual int is_connected()
+#else
     int is_connected()
+#endif
     {
         // Thread safe / atomic HAL call
         return gpio_is_connected(&gpio);

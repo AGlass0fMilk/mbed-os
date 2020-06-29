@@ -85,6 +85,18 @@
         "ospi_dqs": {
             "help": "OSPI dqs pin",
             "value": "OSPI_FLASH1_DQS"
+        },
+        "virtualize-digitalout": {
+            "help": "Enable virtual functions in the DigitalOut class",
+            "value": false
+        },
+        "virtualize-digitalin": {
+            "help": "Enable virtual functions in the DigitalIn class",
+            "value": false
+        },
+        "virtualize-digitalinout": {
+            "help": "Enable virtual functions in the DigitalInOut class",
+            "value": false
         }
     }
 }

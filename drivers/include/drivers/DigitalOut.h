@@ -1,5 +1,5 @@
 /* mbed Microcontroller Library
- * Copyright (c) 2006-2019 ARM Limited
+ * Copyright (c) 2006-2020 ARM Limited
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,16 @@
 #define MBED_DIGITALOUT_H
 
 #include "platform/platform.h"
+
 #include "hal/gpio_api.h"
+
+/**
+ * Option to make certain class functions virtual for advanced polymorphism.
+ * Disabled by default for size and speed optimization.
+ */
+#ifndef MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALOUT
+#define MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALOUT false
+#endif
 
 namespace mbed {
 /**
@@ -70,12 +79,27 @@ public:
         gpio_init_out_ex(&gpio, pin, value);
     }
 
+    /** Class destructor, deinitialize the pin
+     */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALOUT
+    virtual ~DigitalOut()
+#else
+    ~DigitalOut()
+#endif
+    {
+        gpio_free(&gpio);
+    }
+
     /** Set the output, specified as 0 or 1 (int)
      *
      *  @param value An integer specifying the pin output value,
      *      0 for logical 0, 1 (or any other non-zero value) for logical 1
      */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALOUT
+    virtual void write(int value)
+#else
     void write(int value)
+#endif
     {
         // Thread safe / atomic HAL call
         gpio_write(&gpio, value);
@@ -87,7 +111,11 @@ public:
      *    an integer representing the output setting of the pin,
      *    0 for logical 0, 1 for logical 1
      */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALOUT
+    virtual int read()
+#else
     int read()
+#endif
     {
         // Thread safe / atomic HAL call
         return gpio_read(&gpio);
@@ -99,7 +127,11 @@ public:
      *    Non zero value if pin is connected to uc GPIO
      *    0 if gpio object was initialized with NC
      */
+#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALOUT
+    virtual int is_connected()
+#else
     int is_connected()
+#endif
     {
         // Thread safe / atomic HAL call
         return gpio_is_connected(&gpio);
