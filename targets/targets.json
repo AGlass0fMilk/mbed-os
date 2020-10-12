@@ -5054,10 +5054,6 @@
         "inherits": [
             "Target"
         ],
-        "components_add": [
-            "QSPIF",
-            "FLASHIAP"
-        ],
         "core": "Cortex-M4F",
         "macros": [
             "BOARD_PCA10056",
@@ -5066,46 +5062,15 @@
             "CMSIS_VECTAB_VIRTUAL",
             "CMSIS_VECTAB_VIRTUAL_HEADER_FILE=\"cmsis_nvic.h\"",
             "MBED_TICKLESS",
-            "MBEDTLS_CONFIG_HW_SUPPORT",
             "WSF_MAX_HANDLERS=10",
             "MBED_MPU_CUSTOM",
             "SWI_DISABLE0",
             "NRF52_PAN_20"
         ],
-        "features": [
-            "CRYPTOCELL310",
-            "BLE"
-        ],
-        "device_has": [
-            "ANALOGIN",
-            "FLASH",
-            "I2C",
-            "I2C_ASYNCH",
-            "I2CSLAVE",
-            "INTERRUPTIN",
-            "ITM",
-            "LPTICKER",
-            "PORTIN",
-            "PORTINOUT",
-            "PORTOUT",
-            "PWMOUT",
-            "SERIAL",
-            "SERIAL_ASYNCH",
-            "SERIAL_FC",
-            "SLEEP",
-            "SPI",
-            "SPI_ASYNCH",
-            "SYSTICK_CLK_OFF_DURING_SLEEP",
-            "TRNG",
-            "USTICKER",
-            "QSPI",
-            "USBDEVICE"
-        ],
         "extra_labels": [
             "NORDIC",
-            "NRF5x",
+            "NRFX",
             "NRF52",
-            "SDK_15_0",
             "CORDIO",
             "CORDIO_LL",
             "SOFTDEVICE_NONE",
