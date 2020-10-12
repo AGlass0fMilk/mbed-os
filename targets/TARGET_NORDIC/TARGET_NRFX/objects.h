@@ -44,6 +44,8 @@
 #include "PeripheralNames.h"
 #include "PinNames.h"
 
+#include "nrfx_config.h"
+
 #if DEVICE_SERIAL
 #if NRFX_UARTE_ENABLED
 #include "nrf_uarte.h"

@@ -5069,6 +5069,9 @@
         ],
         "device_has": [
             "ANALOGIN",
+            "I2C",
+            "I2CSLAVE",
+            "I2C_ASYNCH",
             "INTERRUPTIN",
             "ITM",
             "LPTICKER",
@@ -5076,6 +5079,8 @@
             "PORTINOUT",
             "PORTOUT",
             "SLEEP",
+            "SPI",
+            "SPI_ASYNH",
             "USTICKER"
         ],
         "extra_labels": [
