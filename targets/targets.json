@@ -5068,7 +5068,9 @@
             "NRF52_PAN_20"
         ],
         "device_has": [
-            "INTERRUPTIN"
+            "INTERRUPTIN",
+            "LPTICKER",
+            "USTICKER"
         ],
         "extra_labels": [
             "NORDIC",
