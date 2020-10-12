@@ -41,30 +41,21 @@
 #include "port_api.h"
 #include "pinmap.h"
 
-#if defined(TARGET_MCU_NRF51822) || defined(TARGET_MCU_NRF52832)
-    #define GPIO_REG_LIST  {NRF_GPIO}
-#endif
-
 static NRF_GPIO_Type * const m_ports[] = GPIO_REG_LIST;
 
-#if defined(TARGET_MCU_NRF51822)
-    static const uint32_t m_gpio_pin_count[] = {31};
-#elif defined(TARGET_MCU_NRF52832)
-    static const uint32_t m_gpio_pin_count[] = {32};
-#elif defined(TARGET_MCU_NRF52840)
-    static const uint32_t m_gpio_pin_count[] = {32, 16};
-#else
-    #error not recognized gpio count for mcu
+#if (GPIO_COUNT == 1)
+static const uint32_t m_gpio_pin_count = { P0_PIN_NUM };
+#elif (GPIO_COUNT == 2)
+static const uint32_t m_gpio_pin_count = { P0_PIN_NUM, P1_PIN_NUM };
 #endif
 
-#define GPIO_PORT_COUNT (sizeof(m_gpio_pin_count)/sizeof(m_gpio_pin_count[0]))
-
+#define GPIO_PORT_COUNT GPIO_COUNT
 
 PinName port_pin(PortName port, int pin_n)
 {
-#if defined(TARGET_MCU_NRF51822) || defined(TARGET_MCU_NRF52832)
+#if GPIO_PORT_COUNT == 1
     return (PinName)pin_n;
-#else    
+#else
     return (PinName)NRF_GPIO_PIN_MAP(port, pin_n);
 #endif
 }
