@@ -5067,6 +5067,9 @@
             "SWI_DISABLE0",
             "NRF52_PAN_20"
         ],
+        "device_has": [
+            "INTERRUPTIN"
+        ],
         "extra_labels": [
             "NORDIC",
             "NRFX",
