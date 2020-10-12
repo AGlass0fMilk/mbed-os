@@ -5075,6 +5075,7 @@
             "PORTIN",
             "PORTINOUT",
             "PORTOUT",
+            "SLEEP",
             "USTICKER"
         ],
         "extra_labels": [
