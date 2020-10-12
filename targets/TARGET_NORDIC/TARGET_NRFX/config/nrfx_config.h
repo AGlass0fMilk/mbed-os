@@ -38,7 +38,7 @@
 #define NRFX_PRIORITY_REALTIME          0
 #define NRFX_PRIORITY_EXTREMELY_HIGH    1
 #define NRFX_PRIORITY_VERY_HIGH         2
-#define NRFX_PRIORTY_HIGH               3
+#define NRFX_PRIORITY_HIGH              3
 #define MRFX_PRIORITY_MEDIUM_HIGH       4
 #define NRFX_PRIORITY_MEDIUM            5
 #define NRFX_PRIORITY_MEDIUM_LOW        6
