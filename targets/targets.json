@@ -5078,6 +5078,7 @@
             "PORTIN",
             "PORTINOUT",
             "PORTOUT",
+            "PWMOUT",
             "SLEEP",
             "SPI",
             "SPI_ASYNH",
