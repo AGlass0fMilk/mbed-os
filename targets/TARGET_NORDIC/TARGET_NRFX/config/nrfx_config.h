@@ -35,15 +35,15 @@
 /**
  * Modification by mbed-os to configure interrupt priority settings
  */
-#define PRIORITY_REALTIME       0
-#define PRIORITY_EXTREMELY_HIGH 1
-#define PRIORITY_VERY_HIGH      2
-#define PRIORTY_HIGH            3
-#define PRIORITY_MEDIUM_HIGH    4
-#define PRIORITY_MEDIUM         5
-#define PRIORITY_MEDIUM_LOW     6
-#define PRIORITY_LOW            7
-#define PRIORITY_THREAD         15
+#define NRFX_PRIORITY_REALTIME          0
+#define NRFX_PRIORITY_EXTREMELY_HIGH    1
+#define NRFX_PRIORITY_VERY_HIGH         2
+#define NRFX_PRIORTY_HIGH               3
+#define MRFX_PRIORITY_MEDIUM_HIGH       4
+#define NRFX_PRIORITY_MEDIUM            5
+#define NRFX_PRIORITY_MEDIUM_LOW        6
+#define NRFX_PRIORITY_LOW               7
+#define NRFX_PRIORITY_THREAD            15
 
 #if defined(NRF51)
     #include <nrfx_config_nrf51.h>

@@ -157,7 +157,7 @@ void common_rtc_init(void)
     nrf_rtc_int_disable(COMMON_RTC_INSTANCE, LP_TICKER_INT_MASK);
 #endif
 
-    NRFX_IRQ_PRIORITY_SET(nrfx_get_irq_number(COMMON_RTC_INSTANCE), PRIORITY_VERY_HIGH);
+    NRFX_IRQ_PRIORITY_SET(nrfx_get_irq_number(COMMON_RTC_INSTANCE), NRFX_PRIORITY_VERY_HIGH);
     NRFX_IRQ_ENABLE(nrfx_get_irq_number(COMMON_RTC_INSTANCE));
 
     nrf_rtc_task_trigger(COMMON_RTC_INSTANCE, NRF_RTC_TASK_START);
