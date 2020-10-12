@@ -36,8 +36,6 @@
 #define NVIC_USER_IRQ_OFFSET  16
 
 #include "nrf.h"
-#include "cmsis.h"
-
 
 #ifdef __cplusplus
 extern "C" {

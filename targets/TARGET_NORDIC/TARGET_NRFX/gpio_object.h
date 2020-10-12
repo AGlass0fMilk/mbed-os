@@ -22,7 +22,7 @@
 #include "PeripheralNames.h"
 #include "PinNames.h"
 
-//#include "nrf_gpio.h"
+#include "nrf_gpio.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,17 +33,16 @@ typedef struct {
 } gpio_t;
 
 static inline void gpio_write(gpio_t *obj, int value) {
-//    MBED_ASSERT(obj->pin != (PinName)NC);
-//    if (value) {
-//        nrf_gpio_pin_set(obj->pin);
-//    } else {
-//        nrf_gpio_pin_clear(obj->pin);
-//    }
+    MBED_ASSERT(obj->pin != (PinName)NC);
+    if (value) {
+        nrf_gpio_pin_set(obj->pin);
+    } else {
+        nrf_gpio_pin_clear(obj->pin);
+    }
 }
 
 static inline int gpio_is_connected(const gpio_t *obj) {
-//    return obj->pin != (PinName)NC;
-    return 0;
+    return obj->pin != (PinName)NC;
 }
 
 #ifdef __cplusplus

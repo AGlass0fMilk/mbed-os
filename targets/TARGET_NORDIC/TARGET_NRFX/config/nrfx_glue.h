@@ -36,11 +36,28 @@
 #include "platform/mbed_assert.h"
 #include "platform/mbed_atomic.h"
 #include "platform/mbed_critical.h"
-#include "platform/mbed_wait_api.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * For some reason, including mbed_wait_api.h (which subsequently
+ * includes "device.h") was causing some strange compilation issue
+ * where NRFX_ASSERT (maybe all macros in this file?) would become
+ * invalid. I believe it has something to do with:
+ *
+ * device.h includes objects.h
+ * objects.h includes gpio_object.h
+ * gpio_object.h includes nrf_gpio.h
+ * nrf_gpio.h includes nrfx.h
+ * nrfx.h includes this file and a bunch of others..??
+ *
+ * Crazy circular inclusions
+ *
+ */
+// #include "platform/mbed_wait_api.h"
+extern void wait_us(int us);
 
 /**
  * @defgroup nrfx_glue nrfx_glue.h
@@ -132,10 +149,10 @@ extern "C" {
 #define NRFX_IRQ_IS_PENDING(irq_number) NVIC_GetPendingIRQ(irq_number)
 
 /** @brief Macro for entering into a critical section. */
-#define NRFX_CRITICAL_SECTION_ENTER() core_util_critical_section_enter
+#define NRFX_CRITICAL_SECTION_ENTER() core_util_critical_section_enter()
 
 /** @brief Macro for exiting from a critical section. */
-#define NRFX_CRITICAL_SECTION_EXIT() core_util_critical_section_exit
+#define NRFX_CRITICAL_SECTION_EXIT() core_util_critical_section_exit()
 
 //------------------------------------------------------------------------------
 
