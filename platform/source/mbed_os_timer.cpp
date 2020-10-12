@@ -52,7 +52,13 @@ OsTimer *init_os_timer()
 #elif DEVICE_USTICKER
         os_timer = new (os_timer_data) OsTimer(get_us_ticker_data());
 #else
-        MBED_ERROR("OS timer not available");
+#if MBED_TRAP_ERRORS_ENABLED
+        MBED_ERROR(
+                MBED_MAKE_ERROR(
+                        MBED_MODULE_PLATFORM,
+                        MBED_ERROR_CODE_CONFIG_UNSUPPORTED),
+                        "OS timer not available");
+#endif
 #endif
     }
 
