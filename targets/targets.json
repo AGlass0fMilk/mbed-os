@@ -5070,6 +5070,7 @@
         "device_has": [
             "ANALOGIN",
             "INTERRUPTIN",
+            "ITM",
             "LPTICKER",
             "PORTIN",
             "PORTINOUT",
