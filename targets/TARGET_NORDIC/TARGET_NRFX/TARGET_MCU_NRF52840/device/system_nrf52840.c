@@ -28,6 +28,7 @@ NOTICE: This file has been modified by Nordic Semiconductor ASA.
 #include "nrf.h"
 #include "nrf_erratas.h"
 #include "system_nrf52840.h"
+#include "nrf5x_lf_clk_helper.h"
 
 /*lint ++flb "Enter library region" */
 
@@ -174,6 +175,16 @@ void SystemInit(void)
     #endif
 
     SystemCoreClockUpdate();
+
+    // Start the LF oscilator according to the mbed configuration (over the nrf5x_lf_clk_helper.h file)
+    NRF_CLOCK->LFCLKSRC             = (CLOCK_LFCLKSRC_SRC_TO_USE << CLOCK_LFCLKSRC_SRC_Pos);
+    NRF_CLOCK->EVENTS_LFCLKSTARTED  = 0;
+    NRF_CLOCK->TASKS_LFCLKSTART     = 1;
+
+    // Wait for the external oscillator to start up.
+    while (NRF_CLOCK->EVENTS_LFCLKSTARTED == 0) {
+        // Do nothing.
+    }
 }
 
 /*lint --flb "Leave library region" */
