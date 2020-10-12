@@ -44,9 +44,9 @@
 static NRF_GPIO_Type * const m_ports[] = GPIO_REG_LIST;
 
 #if (GPIO_COUNT == 1)
-static const uint32_t m_gpio_pin_count = { P0_PIN_NUM };
+static const uint32_t m_gpio_pin_count[] = { P0_PIN_NUM };
 #elif (GPIO_COUNT == 2)
-static const uint32_t m_gpio_pin_count = { P0_PIN_NUM, P1_PIN_NUM };
+static const uint32_t m_gpio_pin_count[] = { P0_PIN_NUM, P1_PIN_NUM };
 #endif
 
 #define GPIO_PORT_COUNT GPIO_COUNT
