@@ -36,22 +36,189 @@
  *
  */
 
+#ifndef MBED_OBJECTS_H
+#define MBED_OBJECTS_H
+
 #include "cmsis.h"
 #include "PortNames.h"
 #include "PeripheralNames.h"
 #include "PinNames.h"
 
-#ifndef MBED_OBJECTS_H
-#define MBED_OBJECTS_H
+#if DEVICE_SERIAL
+#if NRFX_UARTE_ENABLED
+#include "nrf_uarte.h"
+#elif NRFX_UART_ENABLED
+#error "NRFX UART not yet supported"
+#endif /** NRFX_UART_ENABLED */
+#endif /** DEVICE_SERIAL */
+
+#if DEVICE_SPI
+#if NRFX_SPIM_ENABLED
+#include "nrfx_spim.h"
+#elif NRFX_SPI_ENABLED
+#include "nrfx_spi.h"
+#endif /** NRFX_SPIM_ENABLED */
+#endif /** DEVICE_SPI */
+
+#if DEVICE_PWMOUT
+#include "nrf_pwm.h"
+#endif /** DEVICE_PWMOUT */
+
+#if DEVICE_ANALOGIN
+#if NRFX_SAADC_ENABLED
+#include "nrfx_saadc.h"
+#elif NRFX_ADC_ENABLED
+#error "NRFX ADC not yet supported"
+#endif /** NRFX_SAADC_ENABLED */
+#endif /** DEVICE_ANALOGIN */
+
+#if DEVICE_I2C
+#include "nrf_twi.h"
+#endif /** DEVICE_I2C */
+
+#if DEVICE_QSPI
+#if !NRFX_QSPI_ENABLED
+#error "NRFX QSPI must be enabled to support QSPI"
+#else
+#include "nrfx_qspi.h"
+#endif /** NRFX_QSPI_ENABLED */
+#endif /** DEVICE_QSPI */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
+/** INTERRUPTIN */
 struct gpio_irq_s {
     uint32_t ch;
 };
+
+/** PORT */
+struct port_s {
+    PortName port;
+    uint32_t mask;
+};
+
+/** TRNG */
+#if MBED_CONF_CRYPTOCELL310_PRESENT
+#include "objects_cryptocell.h"
+#else
+struct trng_s {
+    uint32_t placeholder;
+};
+#endif /** MBED_CONF_CRYPTOCELL310_PRESENT */
+
+/** SERIAL */
+#if DEVICE_SERIAL
+
+struct serial_s {
+    int                 instance;
+    uint32_t            tx;
+    uint32_t            rx;
+    uint32_t            cts;
+    uint32_t            rts;
+    nrf_uarte_hwfc_t     hwfc;
+    nrf_uarte_parity_t   parity;
+    nrf_uarte_baudrate_t baudrate;
+    uint32_t            context;
+    uint32_t            handler;
+    uint32_t            mask;
+    uint32_t            event;
+    bool                update;
+#if DEVICE_SERIAL_ASYNCH
+    bool                rx_asynch;
+    uint32_t            tx_handler;
+    uint32_t            tx_mask;
+    uint32_t            tx_event;
+    uint32_t            rx_handler;
+    uint32_t            rx_mask;
+    uint32_t            rx_event;
+#endif /** DEVICE_SERIAL_ASYNCH */
+};
+#endif /** DEVICE_SERIAL */
+
+/** SPI */
+#if DEVICE_SPI
+
+struct spi_s {
+    int instance;
+    PinName cs;
+#if NRFX_SPIM_ENABLED
+    nrfx_spim_config_t config;
+#elif NRFX_SPI_ENABLED
+    nrfx_spi_config_t config;
+#endif /** NRFX_SPIM_ENABLED */
+    bool update;
+
+#if DEVICE_SPI_ASYNCH
+    uint32_t handler;
+    uint32_t mask;
+    uint32_t event;
+#endif /** DEVICE_SPI_ASYNCH */
+};
+#endif /** DEVICE_SPI */
+
+
+/** PWMOUT */
+#if DEVICE_PWMOUT
+
+struct pwmout_s {
+    int instance;
+    PinName pin;
+    nrf_pwm_values_common_t pulse;
+    uint16_t period;
+    float percent;
+    nrf_pwm_sequence_t sequence;
+};
+#endif /** DEVICE_PWMOUT */
+
+
+#if DEVICE_I2C
+
+struct i2c_s {
+    int instance;
+    PinName sda;
+    PinName scl;
+    nrf_twi_frequency_t frequency;
+    int state;
+    int mode;
+    bool update;
+
+#if DEVICE_I2C_ASYNCH
+    uint32_t handler;
+    uint32_t mask;
+    uint32_t event;
+#endif /** DEVICE_I2C_ASYNCH */
+
+#if DEVICE_I2CSLAVE
+    bool was_slave;
+    bool is_slave;
+    uint8_t slave_addr;
+#endif /** DEVICE_I2CSLAVE */
+};
+
+#endif /** DEVICE_I2C */
+
+#if DEVICE_ANALOGIN
+
+struct analogin_s {
+    uint8_t channel;
+};
+#endif /** DEVICE_ANALOGIN */
+
+#if DEVICE_FLASH
+struct flash_s {
+    uint32_t placeholder;
+};
+#endif
+
+#if DEVICE_QSPI
+
+struct qspi_s {
+    uint32_t placeholder;
+    //nrfx_qspi_config_t config;
+};
+#endif /** DEVICE_QSPI */
 
 #ifdef __cplusplus
 }
