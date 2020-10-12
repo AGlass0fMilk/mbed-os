@@ -5068,6 +5068,7 @@
             "NRF52_PAN_20"
         ],
         "device_has": [
+            "ANALOGIN",
             "INTERRUPTIN",
             "LPTICKER",
             "PORTIN",
