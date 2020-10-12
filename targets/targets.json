@@ -5070,6 +5070,9 @@
         "device_has": [
             "INTERRUPTIN",
             "LPTICKER",
+            "PORTIN",
+            "PORTINOUT",
+            "PORTOUT",
             "USTICKER"
         ],
         "extra_labels": [
