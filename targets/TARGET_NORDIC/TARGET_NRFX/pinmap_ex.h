@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 
+#if DEVICE_I2C
 /* Data structure for pre-allocated I2C instances. */
 typedef struct {
     PinName sda;
@@ -32,7 +33,9 @@ typedef struct {
 } PinMapI2C;
 
 extern const PinMapI2C PinMap_I2C[];
+#endif
 
+#if DEVICE_SPI
 /* Data structure for pre-allocated SPI instances. */
 typedef struct {
     PinName mosi;
@@ -42,7 +45,9 @@ typedef struct {
 } PinMapSPI;
 
 extern const PinMapSPI PinMap_SPI[];
+#endif
 
+#if DEVICE_PWMOUT
 /* Data structure for pre-allocated PWM instances. */
 typedef struct {
     PinName pwm;
@@ -50,7 +55,9 @@ typedef struct {
 } PinMapPWM;
 
 extern const PinMapPWM PinMap_PWM[];
+#endif
 
+#if DEVICE_SERIAL
 /* Data structure for pre-allocated UART instances. */
 typedef struct {
     PinName tx;
@@ -59,7 +66,9 @@ typedef struct {
 } PinMapUART;
 
 extern const PinMapUART PinMap_UART[];
+#endif
 
+#if DEVICE_I2C
 /**
  * @brief      Find hardware instance for the provided I2C pins.
  *
@@ -79,7 +88,9 @@ extern const PinMapUART PinMap_UART[];
  * @return     Hardware instance associated with provided pins.
  */
 int pin_instance_i2c(PinName sda, PinName scl);
+#endif
 
+#if DEVICE_SPI
 /**
  * @brief      Find hardware instance for the provided SPI pins.
  *
@@ -100,7 +111,9 @@ int pin_instance_i2c(PinName sda, PinName scl);
  * @return     Hardware instance associated with provided pins.
  */
 int pin_instance_spi(PinName mosi, PinName miso, PinName clk);
+#endif
 
+#if DEVICE_PWMOUT
 /**
  * @brief      Find hardware instance for the provided PWM pins.
  *
@@ -119,7 +132,9 @@ int pin_instance_spi(PinName mosi, PinName miso, PinName clk);
  * @return     Hardware instance associated with provided pins.
  */
 int pin_instance_pwm(PinName pwm);
+#endif
 
+#if DEVICE_SERIAL
 /**
  * @brief      Find hardware instance for the provided UART pins.
  *
@@ -139,6 +154,7 @@ int pin_instance_pwm(PinName pwm);
  * @return     Hardware instance associated with provided pins.
  */
 int pin_instance_uart(PinName tx, PinName rx);
+#endif
 
 #ifdef __cplusplus
 }

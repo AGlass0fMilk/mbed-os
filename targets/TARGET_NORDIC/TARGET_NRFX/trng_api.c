@@ -41,6 +41,8 @@
 #include "hal/trng_api.h"
 #include "hal/critical_section_api.h"
 
+// TODO refactor for nrfx_rng.h
+
 #include "nrf_drv_rng.h"
 
 /* Keep track of instantiated FlashIAP objects. */

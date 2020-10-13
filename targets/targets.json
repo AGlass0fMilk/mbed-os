@@ -6938,12 +6938,9 @@
         "inherits": [
             "PSA_V8_M"
         ],
-        "core": "Cortex-M33-NS",
+        "core": "Cortex-M33",
         "supported_toolchains": [
             "GCC_ARM"
-        ],
-        "features_add": [
-            "EXPERIMENTAL_API"
         ],
         "macros_add": [
             "__STARTUP_CLEAR_BSS",
@@ -6962,6 +6959,9 @@
             "SLEEP",
             "USTICKER"
         ],
+        "device_has_remove": [
+            "TRNG"
+        ],
         "extra_labels_add": [
             "NORDIC",
             "NRFX",
@@ -6972,6 +6972,7 @@
         "detect_code": [
             "1101"
         ],
+        "OUTPUT_EXT": "hex",
         "program_cycle_s": 6,
         "bootloader_supported": true,
         "secure_image_filename": "tmf_s.bin",

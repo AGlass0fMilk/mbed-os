@@ -355,7 +355,7 @@ Reset_Handler:
 
 /* Execute SystemInit function. */
     bl SystemInit
-    bl nrf_reloc_vector_table    
+    /*bl nrf_reloc_vector_table    */
 
 /* Call _start function provided by libraries.
  * If those libraries are not accessible, define __START as your entry point.

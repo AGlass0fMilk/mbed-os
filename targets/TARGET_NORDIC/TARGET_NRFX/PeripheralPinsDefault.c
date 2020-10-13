@@ -21,6 +21,7 @@
 /* Default mapping between I2C pins and I2C instance.
  * Can be overwritten by user.
  */
+#if 0
 MBED_WEAK const PinMapI2C PinMap_I2C[1] = {
     { NC, NC, NC }
 };
@@ -45,3 +46,4 @@ MBED_WEAK const PinMapPWM PinMap_PWM[1] = {
 MBED_WEAK const PinMapUART PinMap_UART[1] = {
     { NC, NC, NC }
 };
+#endif

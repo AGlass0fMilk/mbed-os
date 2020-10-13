@@ -30,17 +30,32 @@
 #endif
 
 /* Define number of instances */
+#if DEVICE_I2C
 #define NORDIC_TWI_COUNT TWI_COUNT
+#endif
+
+#if DEVICE_SPI
 #define NORDIC_SPI_COUNT SPI_COUNT
+#endif
+
+#if DEVICE_PWMOUT
 #define NORDIC_PWM_COUNT PWM_COUNT
+#endif
+
+#if DEVICE_SERIAL
 #define NORDIC_UART_COUNT UARTE_COUNT
+#endif
 
 /* Define which instance to return when there are no free instances left.
  * The Mbed HAL API doesn't provide a way for signaling initialization errors
  * so we return the default value. Any instance conflicts must be handled
  * by the driver implementation.
  */
+#if DEVICE_I2C
 #define DEFAULT_I2C_INSTANCE 0 // SPI counts down, choose instance furthest away
+#endif
+
+#if 0
 #define DEFAULT_SPI_INSTANCE (NORDIC_SPI_COUNT - 1) // I2C counts up, choose instance furthers away
 #define DEFAULT_PWM_INSTANCE (NORDIC_PWM_COUNT - 1)
 #define DEFAULT_UART_INSTANCE (NORDIC_UART_COUNT - 1)
@@ -479,4 +494,4 @@ int pin_instance_uart(PinName tx, PinName rx)
 
     return instance;
 }
-
+#endif

@@ -162,15 +162,15 @@ typedef enum {
     p46 = P1_14,
     p47 = P1_15,
     
-    LED1    = p13,
-    LED2    = p14,
-    LED3    = p15,
-    LED4    = p16,
+    LED1    = P0_2,
+    LED2    = P0_3,
+    LED3    = P0_4,
+    LED4    = P0_5,
 
-    BUTTON1 = p11,
-    BUTTON2 = p12,
-    BUTTON3 = p24,
-    BUTTON4 = p25,
+    BUTTON1 = P0_8,
+    BUTTON2 = P0_9,
+    SWITCH1 = P0_6,
+    SWITCH2 = P0_7,
 
     RX_PIN_NUMBER  = p8,
     TX_PIN_NUMBER  = p6,

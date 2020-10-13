@@ -19,6 +19,9 @@
 #define MBED_CMSIS_H
 
 #include "nrf.h"
+
+#ifndef CMSIS_NVIC_VIRTUAL
 #include "cmsis_nvic.h"
+#endif
 
 #endif
