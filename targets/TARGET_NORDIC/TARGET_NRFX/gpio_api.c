@@ -64,7 +64,16 @@ static void gpiote_irq_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t acti
     }
 }
 
-void GPIOTE_IRQHandler(void);
+#ifndef NRF9160_XXAA
+#define GPIO_IRQHANDLER GPIOTE_IRQHandler
+#define GPIO_IRQN       GPIOTE_IRQn
+#else
+// Use non-secure GPIO interrupt vector on nRF9160
+#define GPIO_IRQHANDLER  GPIOTE1_IRQHandler
+#define GPIO_IRQN       GPIOTE1_IRQn
+#endif
+
+void GPIO_IRQHANDLER(void);
 
 void gpio_init(gpio_t *obj, PinName pin)
 {
@@ -74,7 +83,7 @@ void gpio_init(gpio_t *obj, PinName pin)
     }
     MBED_ASSERT((uint32_t)pin < GPIO_PIN_COUNT);
 
-    NVIC_SetVector(GPIOTE_IRQn, (uint32_t) GPIOTE_IRQHandler);
+    NVIC_SetVector(GPIO_IRQN, (uint32_t) GPIO_IRQHANDLER);
 
     (void) nrfx_gpiote_init(NRFX_GPIOTE_DEFAULT_CONFIG_IRQ_PRIORITY);
 

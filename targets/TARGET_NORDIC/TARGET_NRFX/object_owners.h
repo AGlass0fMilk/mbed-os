@@ -17,6 +17,8 @@
 #ifndef OBJECT_OWNERS_H
 #define OBJECT_OWNERS_H
 
+#if DEVICE_I2C && DEVICE_SPI
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -40,6 +42,8 @@ void * object_owner_spi2c_get(int instance);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
 
 #endif

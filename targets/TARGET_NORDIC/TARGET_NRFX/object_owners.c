@@ -17,10 +17,13 @@
 
 #include "object_owners.h"
 
+#if DEVICE_I2C && DEVICE_SPI
+
 #include "nrf.h"
 #include "nrf_peripherals.h"
 
 #include <stdio.h>
+
 
 #define SPI2C_INSTANCES SPI_COUNT
 
@@ -56,3 +59,5 @@ void * object_owner_spi2c_get(int instance)
 
     return object;
 }
+
+#endif

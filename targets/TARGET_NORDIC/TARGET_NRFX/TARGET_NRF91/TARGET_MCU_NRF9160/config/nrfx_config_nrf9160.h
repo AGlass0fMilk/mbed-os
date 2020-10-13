@@ -44,55 +44,55 @@
  * The following section provides configuration for the name translation.
  * It must be modified to reflect the actual configuration set in NRF_SPU.
  */
-#define NRF_CLOCK      NRF_CLOCK_S
-#define NRF_DPPIC      NRF_DPPIC_S
+#define NRF_CLOCK      NRF_CLOCK_NS
+#define NRF_DPPIC      NRF_DPPIC_NS
 #define NRF_EGU0       NRF_EGU0_S
-#define NRF_EGU1       NRF_EGU1_S
-#define NRF_EGU2       NRF_EGU2_S
+#define NRF_EGU1       NRF_EGU1_NS
+#define NRF_EGU2       NRF_EGU2_NS
 #define NRF_EGU3       NRF_EGU3_S
 #define NRF_EGU4       NRF_EGU4_S
 #define NRF_EGU5       NRF_EGU5_S
-#define NRF_FPU        NRF_FPU_S
+#define NRF_FPU        NRF_FPU_NS
 #define NRF_I2S        NRF_I2S_S
-#define NRF_IPC        NRF_IPC_S
+#define NRF_IPC        NRF_IPC_NS
 #define NRF_KMU        NRF_KMU_S
-#define NRF_NVMC       NRF_NVMC_S
+#define NRF_NVMC       NRF_NVMC_NS
 #define NRF_P0         NRF_P0_S
 #define NRF_PDM        NRF_PDM_S
 #define NRF_POWER      NRF_POWER_S
-#define NRF_PWM0       NRF_PWM0_S
-#define NRF_PWM1       NRF_PWM1_S
-#define NRF_PWM2       NRF_PWM2_S
-#define NRF_PWM3       NRF_PWM3_S
-#define NRF_REGULATORS NRF_REGULATORS_S
-#define NRF_RTC0       NRF_RTC0_S
-#define NRF_RTC1       NRF_RTC1_S
-#define NRF_SAADC      NRF_SAADC_S
+#define NRF_PWM0       NRF_PWM0_NS
+#define NRF_PWM1       NRF_PWM1_NS
+#define NRF_PWM2       NRF_PWM2_NS
+#define NRF_PWM3       NRF_PWM3_NS
+#define NRF_REGULATORS NRF_REGULATORS_NS
+#define NRF_RTC0       NRF_RTC0_NS
+#define NRF_RTC1       NRF_RTC1_NS
+#define NRF_SAADC      NRF_SAADC_NS
 #define NRF_SPIM0      NRF_SPIM0_S
 #define NRF_SPIM1      NRF_SPIM1_S
 #define NRF_SPIM2      NRF_SPIM2_S
-#define NRF_SPIM3      NRF_SPIM3_S
+#define NRF_SPIM3      NRF_SPIM3_NS
 #define NRF_SPIS0      NRF_SPIS0_S
 #define NRF_SPIS1      NRF_SPIS1_S
 #define NRF_SPIS2      NRF_SPIS2_S
 #define NRF_SPIS3      NRF_SPIS3_S
-#define NRF_TIMER0     NRF_TIMER0_S
-#define NRF_TIMER1     NRF_TIMER1_S
-#define NRF_TIMER2     NRF_TIMER2_S
+#define NRF_TIMER0     NRF_TIMER0_NS
+#define NRF_TIMER1     NRF_TIMER1_NS
+#define NRF_TIMER2     NRF_TIMER2_NS
 #define NRF_TWIM0      NRF_TWIM0_S
 #define NRF_TWIM1      NRF_TWIM1_S
-#define NRF_TWIM2      NRF_TWIM2_S
+#define NRF_TWIM2      NRF_TWIM2_NS
 #define NRF_TWIM3      NRF_TWIM3_S
 #define NRF_TWIS0      NRF_TWIS0_S
 #define NRF_TWIS1      NRF_TWIS1_S
 #define NRF_TWIS2      NRF_TWIS2_S
 #define NRF_TWIS3      NRF_TWIS3_S
-#define NRF_UARTE0     NRF_UARTE0_S
-#define NRF_UARTE1     NRF_UARTE1_S
-#define NRF_UARTE2     NRF_UARTE2_S
+#define NRF_UARTE0     NRF_UARTE0_NS
+#define NRF_UARTE1     NRF_UARTE1_NS
+#define NRF_UARTE2     NRF_UARTE2_NS
 #define NRF_UARTE3     NRF_UARTE3_S
-#define NRF_VMC        NRF_VMC_S
-#define NRF_WDT        NRF_WDT_S
+#define NRF_VMC        NRF_VMC_NS
+#define NRF_WDT        NRF_WDT_NS
 
 /*
  * The following section provides the name translation for peripherals with
@@ -221,7 +221,7 @@
 // <e> NRFX_DPPI_ENABLED - nrfx_dppi - DPPI allocator.
 //==========================================================
 #ifndef NRFX_DPPI_ENABLED
-#define NRFX_DPPI_ENABLED 0
+#define NRFX_DPPI_ENABLED 1
 #endif
 // <e> NRFX_DPPI_CONFIG_LOG_ENABLED - Enables logging in the module.
 //==========================================================
@@ -338,11 +338,11 @@
 // <e> NRFX_GPIOTE_ENABLED - nrfx_gpiote - GPIOTE peripheral driver.
 //==========================================================
 #ifndef NRFX_GPIOTE_ENABLED
-#define NRFX_GPIOTE_ENABLED 0
+#define NRFX_GPIOTE_ENABLED 1
 #endif
 // <o> NRFX_GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS - Number of lower power input pins.
 #ifndef NRFX_GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS
-#define NRFX_GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS 1
+#define NRFX_GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS 4
 #endif
 
 // <o> NRFX_GPIOTE_DEFAULT_CONFIG_IRQ_PRIORITY  - Interrupt priority.
@@ -602,34 +602,34 @@
 // <e> NRFX_PRS_ENABLED - nrfx_prs - Peripheral Resource Sharing (PRS) module.
 //==========================================================
 #ifndef NRFX_PRS_ENABLED
-#define NRFX_PRS_ENABLED 0
+#define NRFX_PRS_ENABLED 1
 #endif
 // <q> NRFX_PRS_BOX_0_ENABLED  - Enables box 0 in the module.
 
 
 #ifndef NRFX_PRS_BOX_0_ENABLED
-#define NRFX_PRS_BOX_0_ENABLED 0
+#define NRFX_PRS_BOX_0_ENABLED 1
 #endif
 
 // <q> NRFX_PRS_BOX_1_ENABLED  - Enables box 1 in the module.
 
 
 #ifndef NRFX_PRS_BOX_1_ENABLED
-#define NRFX_PRS_BOX_1_ENABLED 0
+#define NRFX_PRS_BOX_1_ENABLED 1
 #endif
 
 // <q> NRFX_PRS_BOX_2_ENABLED  - Enables box 2 in the module.
 
 
 #ifndef NRFX_PRS_BOX_2_ENABLED
-#define NRFX_PRS_BOX_2_ENABLED 0
+#define NRFX_PRS_BOX_2_ENABLED 1
 #endif
 
 // <q> NRFX_PRS_BOX_3_ENABLED  - Enables box 3 in the module.
 
 
 #ifndef NRFX_PRS_BOX_3_ENABLED
-#define NRFX_PRS_BOX_3_ENABLED 0
+#define NRFX_PRS_BOX_3_ENABLED 1
 #endif
 
 // <e> NRFX_PRS_CONFIG_LOG_ENABLED - Enables logging in the module.
@@ -688,34 +688,34 @@
 // <e> NRFX_PWM_ENABLED - nrfx_pwm - PWM peripheral driver.
 //==========================================================
 #ifndef NRFX_PWM_ENABLED
-#define NRFX_PWM_ENABLED 0
+#define NRFX_PWM_ENABLED 1
 #endif
 // <q> NRFX_PWM0_ENABLED  - Enables PWM0 instance.
 
 
 #ifndef NRFX_PWM0_ENABLED
-#define NRFX_PWM0_ENABLED 0
+#define NRFX_PWM0_ENABLED 1
 #endif
 
 // <q> NRFX_PWM1_ENABLED  - Enables PWM1 instance.
 
 
 #ifndef NRFX_PWM1_ENABLED
-#define NRFX_PWM1_ENABLED 0
+#define NRFX_PWM1_ENABLED 1
 #endif
 
 // <q> NRFX_PWM2_ENABLED  - Enables PWM2 instance.
 
 
 #ifndef NRFX_PWM2_ENABLED
-#define NRFX_PWM2_ENABLED 0
+#define NRFX_PWM2_ENABLED 1
 #endif
 
 // <q> NRFX_PWM3_ENABLED  - Enables PWM3 instance.
 
 
 #ifndef NRFX_PWM3_ENABLED
-#define NRFX_PWM3_ENABLED 0
+#define NRFX_PWM3_ENABLED 1
 #endif
 
 // <o> NRFX_PWM_DEFAULT_CONFIG_IRQ_PRIORITY  - Interrupt priority.
@@ -876,7 +876,7 @@
 // <e> NRFX_SAADC_ENABLED - nrfx_saadc - SAADC peripheral driver.
 //==========================================================
 #ifndef NRFX_SAADC_ENABLED
-#define NRFX_SAADC_ENABLED 0
+#define NRFX_SAADC_ENABLED 1
 #endif
 
 // <o> NRFX_SAADC_DEFAULT_CONFIG_IRQ_PRIORITY  - Interrupt priority.
@@ -1470,26 +1470,26 @@
 // <e> NRFX_UARTE_ENABLED - nrfx_uarte - UARTE peripheral driver.
 //==========================================================
 #ifndef NRFX_UARTE_ENABLED
-#define NRFX_UARTE_ENABLED 0
+#define NRFX_UARTE_ENABLED 1
 #endif
 // <q> NRFX_UARTE0_ENABLED - Enables UARTE0 instances
 #ifndef NRFX_UARTE0_ENABLED
-#define NRFX_UARTE0_ENABLED 0
+#define NRFX_UARTE0_ENABLED 1
 #endif
 
 // <q> NRFX_UARTE1_ENABLED - Enables UARTE1 instance.
 #ifndef NRFX_UARTE1_ENABLED
-#define NRFX_UARTE1_ENABLED 0
+#define NRFX_UARTE1_ENABLED 1
 #endif
 
 // <q> NRFX_UARTE2_ENABLED - Enables UARTE2 instance.
 #ifndef NRFX_UARTE2_ENABLED
-#define NRFX_UARTE2_ENABLED 0
+#define NRFX_UARTE2_ENABLED 1
 #endif
 
 // <q> NRFX_UARTE3_ENABLED - Enables UARTE3 instance.
 #ifndef NRFX_UARTE3_ENABLED
-#define NRFX_UARTE3_ENABLED 0
+#define NRFX_UARTE3_ENABLED 1
 #endif
 
 // <o> NRFX_UARTE_DEFAULT_CONFIG_IRQ_PRIORITY  - Interrupt priority.

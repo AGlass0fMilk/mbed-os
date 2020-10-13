@@ -23,55 +23,10 @@ NOTICE: This file has been modified by Nordic Semiconductor ASA.
     .syntax unified
     .arch armv8-m.main
 
-#ifdef __STARTUP_CONFIG
-#include "startup_config.h"
-#ifndef __STARTUP_CONFIG_STACK_ALIGNEMENT
-#define __STARTUP_CONFIG_STACK_ALIGNEMENT 3
-#endif
-#endif
-
-    .section .stack
-#if defined(__STARTUP_CONFIG)
-    .align __STARTUP_CONFIG_STACK_ALIGNEMENT
-    .equ    Stack_Size, __STARTUP_CONFIG_STACK_SIZE
-#elif defined(__STACK_SIZE)
-    .align 3
-    .equ    Stack_Size, __STACK_SIZE
-#else
-    .align 3
-    .equ    Stack_Size, 16384
-#endif
-    .globl __StackTop
-    .globl __StackLimit
-__StackLimit:
-    .space Stack_Size
-    .size __StackLimit, . - __StackLimit
-__StackTop:
-    .size __StackTop, . - __StackTop
-
-    .section .heap
-    .align 3
-#if defined(__STARTUP_CONFIG)
-    .equ Heap_Size, __STARTUP_CONFIG_HEAP_SIZE
-#elif defined(__HEAP_SIZE)
-    .equ Heap_Size, __HEAP_SIZE
-#else
-    .equ Heap_Size, 16384
-#endif
-    .globl __HeapBase
-    .globl __HeapLimit
-__HeapBase:
-    .if Heap_Size
-    .space Heap_Size
-    .endif
-    .size __HeapBase, . - __HeapBase
-__HeapLimit:
-    .size __HeapLimit, . - __HeapLimit
-
-    .section .isr_vector, "ax"
+    .section .Vectors//, "ax"
     .align 2
-    .globl __isr_vector
-__isr_vector:
+    .globl __Vectors
+__Vectors:
     .long   __StackTop                  /* Top of Stack */
     .long   Reset_Handler
     .long   NMI_Handler
@@ -331,7 +286,7 @@ __isr_vector:
     .long   0                           /*Reserved */
     .long   0                           /*Reserved */
 
-    .size __isr_vector, . - __isr_vector
+    .size    __Vectors, . - __Vectors
 
 /* Reset Handler */
 
@@ -343,7 +298,7 @@ __isr_vector:
     .globl Reset_Handler
     .type Reset_Handler, %function
 Reset_Handler:
-
+    .fnstart
 
 /* Loop to copy data from read only memory to RAM.
  * The ranges of copy from/to are specified by following symbols:
@@ -400,6 +355,7 @@ Reset_Handler:
 
 /* Execute SystemInit function. */
     bl SystemInit
+    bl nrf_reloc_vector_table    
 
 /* Call _start function provided by libraries.
  * If those libraries are not accessible, define __START as your entry point.
@@ -410,6 +366,8 @@ Reset_Handler:
     bl __START
 
     .pool
+    .cantunwind
+    .fnend
     .size   Reset_Handler,.-Reset_Handler
 
     .section ".text"

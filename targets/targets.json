@@ -6934,6 +6934,67 @@
         "inherits": ["AMA3B1KK"],
         "components_add": ["lis2dh12", "hm01b0"]
     },
+    "MCU_NRF9160": {
+        "inherits": [
+            "PSA_V8_M"
+        ],
+        "core": "Cortex-M33-NS",
+        "supported_toolchains": [
+            "GCC_ARM"
+        ],
+        "features_add": [
+            "EXPERIMENTAL_API"
+        ],
+        "macros_add": [
+            "__STARTUP_CLEAR_BSS",
+            "BL2",
+            "BOARD_PCA10090",
+            "NRF9160_XXAA",
+            "TARGET_NRF9160",
+            "CMSIS_VECTAB_VIRTUAL",
+            "CMSIS_VECTAB_VIRTUAL_HEADER_FILE=\"cmsis_nvic.h\"",
+            "MBED_TICKLESS",
+            "MBED_MPU_CUSTOM"
+        ],
+        "device_has_add": [
+            "INTERRUPTIN",
+            "LPTICKER",
+            "SLEEP",
+            "USTICKER"
+        ],
+        "extra_labels_add": [
+            "NORDIC",
+            "NRFX",
+            "NRF91"
+        ],
+        "device_name": "nRF9160_xxAA",
+        "public": false,
+        "detect_code": [
+            "1101"
+        ],
+        "program_cycle_s": 6,
+        "bootloader_supported": true,
+        "secure_image_filename": "tmf_s.bin",
+        "tfm_target_name": "nrf9160dk_nrf9160",
+        "tfm_bootloader_supported": true,
+        "tfm_default_toolchain": "GNUARM",
+        "tfm_supported_toolchains": [
+            "GNUARM"
+        ],
+        "tfm_delivery_dir": "TARGET_NORDIC/TARGET_NRFX/TARGET_NRF91/TARGET_MCU_NRF9160/COMPONENT_TFM_S_FW",
+        "TFM_OUTPUT_EXT": "hex"
+    },
+    "NRF9160_DK": {
+        "supported_form_factors": [
+            "ARDUINO"
+        ],
+        "inherits": [
+            "MCU_NRF9160"
+        ],
+        "macros_add": [
+            "CONFIG_GPIO_AS_PINRESET"
+        ]
+    },
     "__build_tools_metadata__": {
         "version": "1",
         "public": false
