@@ -31,15 +31,14 @@
 
 #include "cmsis_nvic.h"
 
-//extern uint32_t nrf_dispatch_vector[NVIC_NUM_VECTORS];
+extern uint32_t nrf_dispatch_vector[NVIC_NUM_VECTORS];
 
 void NVIC_SetVector(IRQn_Type IRQn, uint32_t vector)
 {
-    //nrf_dispatch_vector[IRQn + NVIC_USER_IRQ_OFFSET] = vector;
+    nrf_dispatch_vector[IRQn + NVIC_USER_IRQ_OFFSET] = vector;
 }
 
 uint32_t NVIC_GetVector(IRQn_Type IRQn)
 {
-    return 0;
-    //return nrf_dispatch_vector[IRQn + NVIC_USER_IRQ_OFFSET];
+    return nrf_dispatch_vector[IRQn + NVIC_USER_IRQ_OFFSET];
 }

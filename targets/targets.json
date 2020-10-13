@@ -5055,6 +5055,7 @@
             "Target"
         ],
         "core": "Cortex-M4F",
+        "features": [ "BLE" ],
         "macros": [
             "BOARD_PCA10056",
             "NRF52840_XXAA",
