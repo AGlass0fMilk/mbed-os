@@ -42,19 +42,21 @@
   Globals
 **************************************************************************************************/
 
-/*! \brief      Extended scan context for 1m */
-lctrExtScanCtx_t lctrMstExtScanOneMCtx;
-
-/*! \brief      Extended scan context for coded */
-lctrExtScanCtx_t lctrMstExtScanCodedCtx;
+///*! \brief      Extended scan context for 1m */
+//lctrExtScanCtx_t lctrMstExtScanOneMCtx;
+//
+///*! \brief      Extended scan context for coded */
+//lctrExtScanCtx_t lctrMstExtScanCodedCtx;
 
 /*! \brief      Extended scan operational context. */
-lctrExtScanCtx_t * lctrMstExtScanTbl[LCTR_SCAN_PHY_TOTAL] =
-  {
-    &lctrMstExtScanOneMCtx,
-    NULL,                      /* 2M does not have extended scanning functionality. */
-    &lctrMstExtScanCodedCtx    /* TODO: share memory with legacy lctrMstScan */
-  };
+//lctrExtScanCtx_t * lctrMstExtScanTbl[LCTR_SCAN_PHY_TOTAL] =
+//  {
+//    &lctrMstExtScanOneMCtx,
+//    NULL,                      /* 2M does not have extended scanning functionality. */
+//    &lctrMstExtScanCodedCtx    /* TODO: share memory with legacy lctrMstScan */
+//  };
+
+lctrExtScanCtx_t * lctrMstExtScanTbl[1] = { NULL };
 
 /*! \brief      Extended scan control block. */
 lctrExtScanCtrlBlk_t lctrMstExtScan;
@@ -69,7 +71,7 @@ lctrPerTransferSyncCtrlBlk_t lctrPerTransferSync;
 LctrPerScanMsg_t *pLctrMstPerScanMsg;
 
 /*! \brief      Periodic scan context table. */
-lctrPerScanCtx_t lctrMstPerScanTbl[LL_MAX_PER_SCAN];
+lctrPerScanCtx_t *lctrMstPerScanTbl = NULL;
 
 /*! \brief      Extended scan data buffer table. */
 static uint8_t *lctrMstExtScanDataBufTbl[LCTR_SCAN_PHY_TOTAL];

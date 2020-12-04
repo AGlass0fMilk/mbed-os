@@ -332,12 +332,12 @@ typedef struct
   Globals
 **************************************************************************************************/
 
-extern lctrExtScanCtx_t * lctrMstExtScanTbl[LCTR_SCAN_PHY_TOTAL];
+extern lctrExtScanCtx_t * lctrMstExtScanTbl[1];
 extern lctrExtScanCtrlBlk_t lctrMstExtScan;
 extern lctrActiveExtScan_t lctrActiveExtScan;
 extern lctrPerCreateSyncCtrlBlk_t lctrPerCreateSync;
 extern lctrPerTransferSyncCtrlBlk_t lctrPerTransferSync;
-extern lctrPerScanCtx_t lctrMstPerScanTbl[LL_MAX_PER_SCAN];
+extern lctrPerScanCtx_t *lctrMstPerScanTbl;
 extern lctrSyncInfo_t trsfSyncInfo;
 
 /**************************************************************************************************

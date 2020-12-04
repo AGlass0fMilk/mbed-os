@@ -55,7 +55,7 @@
 **************************************************************************************************/
 /*! \brief      Initiate operational context. */
 /*! \brief      Extended scan operational context. */
-lctrExtScanCtx_t lctrMstExtInitTbl[LCTR_SCAN_PHY_TOTAL];
+lctrExtScanCtx_t *lctrMstExtInitTbl = NULL;
 
 /*! \brief      Extended initiator control block. */
 lctrExtInitCtrlBlk_t lctrMstExtInit;

@@ -75,7 +75,7 @@ typedef struct
   Globals
 **************************************************************************************************/
 
-extern lctrExtScanCtx_t lctrMstExtInitTbl[LCTR_SCAN_PHY_TOTAL];
+extern lctrExtScanCtx_t *lctrMstExtInitTbl;
 extern lctrExtInitCtrlBlk_t lctrMstExtInit;
 
 /**************************************************************************************************
