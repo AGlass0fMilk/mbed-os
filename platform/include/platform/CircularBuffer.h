@@ -315,6 +315,10 @@ public:
         return data_updated;
     }
 
+    mbed::Span<const T, BufferSize> data(void) {
+        return mbed::make_const_Span<BufferSize, T>((const T*) _buffer);
+    }
+
 private:
     bool non_critical_empty() const
     {
