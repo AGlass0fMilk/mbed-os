@@ -1073,7 +1073,8 @@ static void palBbBleSetChannelParam(PalBbBleChan_t *pChan)
 #endif
 
   /* set the power parameter to the value that was actually set in hardware */
-  pChan->txPower = txPower;
+  //pChan->txPower = txPower;
+  pChan->txPower = 8;
 
 #if (BB_ENABLE_INLINE_ENC_TX || BB_ENABLE_INLINE_DEC_RX)
   /* enable inline encryption */
