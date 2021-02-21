@@ -25,6 +25,28 @@
 #include "platform/PlatformMutex.h"
 
 namespace mbed {
+
+// Forward declare AnalogOut
+class AnalogOut;
+
+namespace interface {
+
+#ifdef FEATURE_EXPERIMENTAL_API
+
+// Pure interface definition for AnalogOut
+struct AnalogOut {
+    virtual ~AnalogOut = default;
+    virtual void write(float value) = 0;
+    virtual void write_u16(unsigned short value) = 0;
+    virtual float read() = 0;
+};
+
+#else
+using AnalogOut = ::mbed::AnalogOut;
+#endif
+
+} // namespace interface
+
 /**
  * \defgroup drivers_AnalogOut AnalogOut class
  * \ingroup drivers-public-api-gpio
@@ -53,7 +75,11 @@ namespace mbed {
  * }
  * @endcode
  */
-class AnalogOut {
+class AnalogOut
+#ifdef FEATURE_EXPERIMENTAL_API
+final : public interface::AnalogOut
+#endif
+{
 
 public:
 
