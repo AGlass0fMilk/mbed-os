@@ -21,15 +21,29 @@
 
 #include "hal/gpio_api.h"
 
-/**
- * Option to make certain class functions virtual for advanced polymorphism.
- * Disabled by default for size and speed optimization.
- */
-#ifndef MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
-#define MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN false
+namespace mbed {
+
+// Forward declare DigitalIn
+class DigitalIn;
+
+namespace interface {
+
+#ifdef FEATURE_EXPERIMENTAL_API
+
+// Pure interface definition for DigitalIn
+struct DigitalIn {
+    virtual ~DigitalIn() = default;
+    virtual int read() = 0;
+    virtual void mode(PinMode pull) = 0;
+    vritual int is_connected() = 0;
+};
+
+#else
+using DigitalIn = ::mbed::DigitalIn;
 #endif
 
-namespace mbed {
+} // namespace interface
+
 /**
  * \defgroup drivers_DigitalIn DigitalIn class
  * \ingroup drivers-public-api-gpio
@@ -59,7 +73,11 @@ namespace mbed {
  * }
  * @endcode
  */
-class DigitalIn {
+class DigitalIn
+#ifdef FEATURE_EXPERIMENTAL_API
+final : public interface::DigitalIn
+#endif
+{
 
 public:
     /** Create a DigitalIn connected to the specified pin
@@ -85,11 +103,7 @@ public:
 
     /** Class destructor, deinitialize the pin
      */
-#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
-    virtual ~DigitalIn()
-#else
     ~DigitalIn()
-#endif
     {
         gpio_free(&gpio);
     }
@@ -100,11 +114,7 @@ public:
      *    An integer representing the state of the input pin,
      *    0 for logical 0, 1 for logical 1
      */
-#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
-    virtual int read()
-#else
     int read()
-#endif
     {
         // Thread safe / atomic HAL call
         return gpio_read(&gpio);
@@ -114,23 +124,14 @@ public:
      *
      *  @param pull PullUp, PullDown, PullNone, OpenDrain
      */
-#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
-    virtual void mode(PinMode pull);
-#else
     void mode(PinMode pull);
-#endif
-
     /** Return the output setting, represented as 0 or 1 (int)
      *
      *  @returns
      *    Non zero value if pin is connected to uc GPIO
      *    0 if gpio object was initialized with NC
      */
-#if MBED_CONF_DRIVERS_VIRTUALIZE_DIGITALIN
-    virtual int is_connected()
-#else
     int is_connected()
-#endif
     {
         // Thread safe / atomic HAL call
         return gpio_is_connected(&gpio);
