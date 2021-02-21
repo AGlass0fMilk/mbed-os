@@ -28,6 +28,30 @@
 #include <cmath>
 
 namespace mbed {
+
+// Forward declare AnalogIn
+class AnalogIn;
+
+namespace interface {
+
+#ifdef FEATURE_EXPERIMENTAL_API
+
+// Pure interface definition for AnalogIn
+struct AnalogIn {
+    virtual ~AnalogIn() = default;
+    virtual float read() = 0;
+    virtual unsigned short read_u16() = 0;
+    virtual float read_voltage() = 0;
+    virtual void set_reference_voltage(float vref) = 0;
+    virtual float get_reference_voltage() const = 0;
+};
+
+#else
+using AnalogIn = ::mbed::AnalogIn;
+#endif
+
+} // namespace interface
+
 /** \defgroup mbed-os-public Public API */
 
 /** \defgroup drivers-public-api Drivers
@@ -65,7 +89,11 @@ namespace mbed {
  * }
  * @endcode
  */
-class AnalogIn {
+class AnalogIn
+#ifdef FEATURE_EXPERIMENTAL_API
+final : public interface::AnalogIn
+#endif
+{
 
 public:
 
