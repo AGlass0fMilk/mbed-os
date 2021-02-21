@@ -27,6 +27,10 @@
 #include "platform/NonCopyable.h"
 
 namespace mbed {
+
+// Forward declare CAN
+class CAN;
+
 /** \defgroup drivers-public-api-can CAN
  * \ingroup drivers-public-api
  */
@@ -107,6 +111,58 @@ public:
 
 /** @}*/
 
+namespace interface {
+
+namespace can {
+
+enum Mode {
+    Reset = 0,
+    Normal,
+    Silent,
+    LocalTest,
+    GlobalTest,
+    SilentTest
+};
+
+enum IrqType {
+    RxIrq = 0,
+    TxIrq,
+    EwIrq,
+    DoIrq,
+    WuIrq,
+    EpIrq,
+    AlIrq,
+    BeIrq,
+    IdIrq,
+
+    IrqCnt
+};
+
+} // namespace can
+
+#ifdef FEATURE_EXPERIMENTAL_API
+
+// Pure virtual interface for CAN
+struct CAN {
+    virtual ~CAN() = default;
+    virtual int frequency(int hz) = 0;
+    virtual int write(CANMessage msg) = 0;
+    virtual int read(CANMessage &msg, int handle = 0) = 0;
+    virtual void reset() = 0;
+    virtual void monitor(bool silent) = 0;
+    virtual int mode(Mode mode) = 0;
+    virtual int filter(unsigned int id, unsigned int mask, CANFormat format = CANAny, int handle = 0) = 0;
+    virtual unsigned char rderror() = 0;
+    virtual unsigned char tderror() = 0;
+    virtual void attach(Callback<void()> func, IrqType tyoe = RxIrq) = 0;
+};
+
+#else
+using CAN = ::mbed::CAN;
+#endif
+
+} // namespace interface
+
 /**
  * \defgroup drivers_CAN CAN class
  * \ingroup drivers-public-api-can
@@ -115,7 +171,13 @@ public:
 
 /** A can bus client, used for communicating with can devices
  */
-class CAN : private NonCopyable<CAN> {
+class CAN
+#ifdef FEATURE_EXPERIMENTAL_API
+final : public interface::CAN, private NonCopyable<CAN>
+#else
+: private NonCopyable<CAN>
+#endif
+{
 
 public:
     /** Creates a CAN interface connected to specific pins.
@@ -233,14 +295,7 @@ public:
      */
     void monitor(bool silent);
 
-    enum Mode {
-        Reset = 0,
-        Normal,
-        Silent,
-        LocalTest,
-        GlobalTest,
-        SilentTest
-    };
+    using Mode = ::mbed::interface::can::Mode;
 
     /** Change CAN operation to the specified mode
      *
@@ -277,19 +332,7 @@ public:
      */
     unsigned char tderror();
 
-    enum IrqType {
-        RxIrq = 0,
-        TxIrq,
-        EwIrq,
-        DoIrq,
-        WuIrq,
-        EpIrq,
-        AlIrq,
-        BeIrq,
-        IdIrq,
-
-        IrqCnt
-    };
+    using IrqType = ::mbed::interface::can::IrqType;
 
     /** Attach a function to call whenever a CAN frame received interrupt is
      *  generated.
@@ -309,7 +352,7 @@ protected:
     virtual void unlock();
 
     can_t               _can;
-    Callback<void()>    _irq[IrqCnt];
+    Callback<void()>    _irq[IrqType::IrqCnt];
     PlatformMutex       _mutex;
 #endif
 };
