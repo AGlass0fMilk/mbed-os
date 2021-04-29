@@ -135,263 +135,264 @@ static uint8_t lctrPackExtAdvHeader(lctrAdvSet_t *pAdvSet, uint8_t manExtHdrFlag
                                     uint8_t advMode, lctrAdvbPduHdr_t *pPduHdr, lctrAdvDataBuf_t *pDataBuf,
                                     uint8_t *pPduBuf, uint8_t commExtAdvPdu, bool_t isPeriodic)
 {
-  uint8_t extHdrFlags = 0;
-  pPduHdr->len = 0;
-  uint8_t *pAuxPtr = NULL;
-
-  uint8_t *pExtHdrBuf = pPduBuf + LL_ADV_HDR_LEN + LCTR_EXT_HDR_CMN_LEN;
-  uint8_t *pBuf = pExtHdrBuf + LCTR_EXT_HDR_FLAG_LEN;
-
-  /* Determine the superior PDU. */
-  if (commExtAdvPdu == LCTR_PDU_AUX_CHAIN_IND)
-  {
-    if (isPeriodic)
-    {
-      commExtAdvPdu = LCTR_PDU_AUX_SYNC_IND;
-    }
-    else
-    {
-      commExtAdvPdu = LCTR_PDU_AUX_ADV_IND;
-    }
-  }
-
-  if ((pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_OMIT_AA_BIT) == 0)
-  {
-    if ((manExtHdrFlags & LL_EXT_HDR_ADV_ADDR_BIT) ||
-        ((optExtHdrFlags & LL_EXT_HDR_ADV_ADDR_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_ADV_ADDR_BIT))))
-    {
-      /* Pack AdvA */
-      extHdrFlags |= LL_EXT_HDR_ADV_ADDR_BIT;
-      BDA64_TO_BSTREAM(pBuf, pAdvSet->advA);
-#if (LL_ENABLE_TESTER == TRUE)
-      if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
-          (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_ADV_ADDR_BIT))
-      {
-        Bda64ToBstream(pBuf - BDA_ADDR_LEN, llTesterCb.extHdr.AdvA);
-      }
-#endif
-    }
-  }
-
-  if ((manExtHdrFlags & LL_EXT_HDR_TGT_ADDR_BIT) ||
-      ((optExtHdrFlags & LL_EXT_HDR_TGT_ADDR_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_TGT_ADDR_BIT))))
-  {
-    /* Pack TargetA */
-    extHdrFlags |= LL_EXT_HDR_TGT_ADDR_BIT;
-    BDA64_TO_BSTREAM(pBuf, pAdvSet->tgtA);
-
-#if (LL_ENABLE_TESTER == TRUE)
-    if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
-        (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_TGT_ADDR_BIT))
-    {
-      Bda64ToBstream(pBuf - BDA_ADDR_LEN, llTesterCb.extHdr.TargetA);
-    }
-#endif
-  }
-
-  if ((manExtHdrFlags & LL_EXT_HDR_ADI_BIT) ||
-      ((optExtHdrFlags & LL_EXT_HDR_ADI_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_ADI_BIT))))
-  {
-    /* Pack AdvDataInfo */
-    extHdrFlags |= LL_EXT_HDR_ADI_BIT;
-    UINT16_TO_BSTREAM(pBuf, (pAdvSet->param.advSID << 12) | ((pAdvSet->param.advDID & 0x0FFF) << 0));
-
-#if (LL_ENABLE_TESTER == TRUE)
-    if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
-        (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_ADI_BIT))
-    {
-      UINT16_TO_BUF(pBuf - sizeof(uint16_t), llTesterCb.extHdr.ADI);
-    }
-#endif
-  }
-
-  unsigned int availDataLen = LL_EXT_ADVB_MAX_LEN - (pBuf - pPduBuf);
-  bool_t syncInfoNeeded = FALSE;
-  if ((manExtHdrFlags & LL_EXT_HDR_SYNC_INFO_BIT) ||
-      ((optExtHdrFlags & LL_EXT_HDR_SYNC_INFO_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_SYNC_INFO_BIT))))
-  {
-    syncInfoNeeded = TRUE;
-    /* Reserve packet space now, pack later. */
-    availDataLen -= LL_SYNC_INFO_LEN;
-  }
-
-  bool_t txPwrNeeded = FALSE;
-  /* Tx Power field is never mandatory; skip check. */
-  if ((optExtHdrFlags & LL_EXT_HDR_TX_PWR_BIT) &&
-      (((commExtAdvPdu == LCTR_PDU_AUX_SYNC_IND) && (pAdvSet->perParam.advEventProp & LL_EXT_HDR_TX_PWR_BIT)) ||
-       ((commExtAdvPdu != LCTR_PDU_AUX_SYNC_IND) && (pAdvSet->param.advEventProp & LL_EXT_HDR_TX_PWR_BIT))))
-  {
-    txPwrNeeded = TRUE;
-    /* Reserve packet space now, pack later. */
-    availDataLen -= LCTR_TX_POWER_LEN;
-  }
-
-  uint16_t remDataLen = 0;
-  if (pDataBuf)
-  {
-    remDataLen = pDataBuf->len - pDataBuf->txOffs;
-    if ((optExtHdrFlags & LL_EXT_HDR_AUX_PTR_BIT) &&  /* Allow fragmentation only if AUX_CHAIN_IND is allowed. */
-        (pDataBuf->fragPref == LL_ADV_DATA_FRAG_ALLOW))
-    {
-      /* Adjust to fragment size. */
-      availDataLen = WSF_MIN(pAdvSet->advDataFragLen, availDataLen);
-    }
-  }
-
-  if ((manExtHdrFlags & LL_EXT_HDR_AUX_PTR_BIT) ||
-      ((optExtHdrFlags & LL_EXT_HDR_AUX_PTR_BIT) && (remDataLen > availDataLen)))
-  {
-    /* Pack AuxPtr. */
-    extHdrFlags |= LL_EXT_HDR_AUX_PTR_BIT;
-    pAuxPtr = pBuf;
-
-    /* Skip AuxPtr field; contents filled when values are known. */
-    pBuf += LCTR_AUX_PTR_LEN;
-  }
-
-  if (syncInfoNeeded)
-  {
-    /* Pack SyncInfo */
-    extHdrFlags |= LL_EXT_HDR_SYNC_INFO_BIT;
-    uint8_t *pSyncInfo = pBuf;
-    lctrPackSyncInfo(pAdvSet, pSyncInfo);
-    pBuf += LL_SYNC_INFO_LEN;
-  }
-
-  if (txPwrNeeded)
-  {
-    /* Pack TxPower */
-    extHdrFlags |= LL_EXT_HDR_TX_PWR_BIT;
-    int8_t actTxPwr = PalRadioGetActualTxPower(pAdvSet->bleData.chan.txPower, TRUE);
-#if (LL_ENABLE_TESTER == TRUE)
-    if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
-        (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_TX_PWR_BIT))
-    {
-      actTxPwr = llTesterCb.extHdr.TxPower;
-    }
-#endif
-    UINT8_TO_BSTREAM(pBuf, (uint8_t)actTxPwr);
-  }
-
-  /* ACAD assembly. */
-  bool_t acadPresent = FALSE;
-  if (commExtAdvPdu == LCTR_PDU_AUX_SYNC_IND)
-  {
-    for (unsigned int acadId = 0; acadId < LCTR_ACAD_NUM_ID; acadId++)
-    {
-      if (pAdvSet->acadParams[acadId].hdr.state == LCTR_ACAD_STATE_ENABLED)
-      {
-        uint8_t acadLen = LL_ACAD_OPCODE_LEN + LL_ACAD_LEN_FIELD_LEN
-                          + pAdvSet->acadParams[acadId].hdr.len;
-
-        uint8_t availExtHdrLen = LL_EXT_ADV_HDR_MAX_LEN - (pBuf - pExtHdrBuf);
-
-        /* Only add ACAD if space available. */
-        if (acadLen <= availExtHdrLen)
-        {
-          acadPresent = TRUE;
-
-          /* Pack ACAD immediately after the Extended Header. */
-          pBuf += lctrPackAcad[acadId](pAdvSet, pBuf);
-        }
-      }
-    }
-  }
-
-  if (!extHdrFlags && !acadPresent)
-  {
-    /* Recover optional ExtHdrFlag field since it is not used. */
-    pBuf = pExtHdrBuf;
-  }
-
-  /* Assign AdvData to this PDU, defer buffer assembly to DMA gather. */
-  uint8_t advDataLen = 0;
-  if (remDataLen)
-  {
-    const unsigned int maxAvailDataLen = LL_EXT_ADVB_MAX_LEN - (pBuf - pPduBuf);
-    availDataLen = WSF_MIN(maxAvailDataLen, availDataLen);  /* Limit to maximum packet size. */
-    advDataLen = WSF_MIN(remDataLen, availDataLen);         /* Reduce to remaining data. */
-
-    /* Commit AdvData fragment to this PDU. */
-    pDataBuf->txOffs += advDataLen;
-  }
-
-  /* Pack Advertising Header now that Extended Advertising Header length is known. */
-  uint16_t extHdrLen = pBuf - pExtHdrBuf;
-  pPduHdr->len = LCTR_EXT_HDR_CMN_LEN + extHdrLen + advDataLen;
-
-  lctrPackAdvbPduHdr(pPduBuf, pPduHdr);
-
-  /* Pack Extended Advertising header; unconditionally write even if unused. */
-  pPduBuf[LL_ADV_HDR_LEN + 0] = extHdrLen |         /* Extended Header Length */
-                                (advMode << 6);     /* AdvMode */
-  pPduBuf[LL_ADV_HDR_LEN + 1] = extHdrFlags;        /* Extended Header Flags */
-
-  switch (commExtAdvPdu)
-  {
-    case LCTR_PDU_ADV_EXT_IND:
-      pAdvSet->auxOffsUsec = 0;
-      pAdvSet->extHdrFlags = extHdrFlags;
-      /* AUX Offset field set dynamically in lctrSlvTxSetupExtAdvHandler() after AuxBod is scheduled. */
-      pAdvSet->pExtAdvAuxPtr = pAuxPtr;
-      break;
-
-    case LCTR_PDU_AUX_ADV_IND:
-      /* Compute auxiliary PDU AuxPtr fields (PDU is an auxiliary PDU). */
-      pAdvSet->auxOffsUsec = 0;
-      if (pAuxPtr)
-      {
-        BbBleData_t * const pBle = &pAdvSet->auxBleData;
-        /* Now the PDU length/duration is known, complete AuxPtr fields for next CHAIN_IND. */
-        pAdvSet->auxOffsUsec = SchBleCalcAuxPktDurationUsec(pBle->chan.txPhy, pBle->chan.initTxPhyOptions, LL_ADV_HDR_LEN + pPduHdr->len) +
-        WSF_MAX(pAdvSet->auxDelayUsec, pLctrRtCfg->auxDelayUsec);
-        pAdvSet->auxOffsUsec = WSF_MIN(pAdvSet->auxOffsUsec, LL_AUX_PTR_MAX_USEC);
-
-        /* Round up auxOffsetUsec if necessary. */
-        pAdvSet->auxOffsUsec = SchBleGetAlignedAuxOffsUsec(pAdvSet->auxOffsUsec);
-
-        lctrPackAuxPtr(pAdvSet, pAdvSet->auxOffsUsec, pAdvSet->auxChIdx, pAuxPtr);
-      }
-      break;
-
-    case LCTR_PDU_AUX_SCAN_RSP:
-    case LCTR_PDU_AUX_CONNECT_RSP:
-      pAdvSet->auxOffsUsec = 0;
-      /* Compute auxiliary PDU AuxPtr fields (PDU is an auxiliary PDU). */
-      if (pAuxPtr)
-      {
-        BbBleData_t * const pBle = &pAdvSet->auxBleData;
-
-        /* Now the PDU length/duration is known, complete AuxPtr fields for next CHAIN_IND. */
-        pAdvSet->auxOffsUsec = SchBleCalcAuxPktDurationUsec(pBle->chan.txPhy, (pBle->chan.tifsTxPhyOptions != BB_PHY_OPTIONS_DEFAULT) ? pBle->chan.tifsTxPhyOptions : pBle->op.slvAuxAdv.auxRxPhyOptions, LL_ADV_HDR_LEN + pPduHdr->len) +
-                               WSF_MAX(pAdvSet->auxDelayUsec, pLctrRtCfg->auxDelayUsec);
-        pAdvSet->auxOffsUsec = WSF_MIN(pAdvSet->auxOffsUsec, LL_AUX_PTR_MAX_USEC);
-
-        /* Round up auxOffsetUsec if necessary. */
-        pAdvSet->auxOffsUsec = SchBleGetAlignedAuxOffsUsec(pAdvSet->auxOffsUsec);
-
-        lctrPackAuxPtr(pAdvSet, pAdvSet->auxOffsUsec, pAdvSet->auxChIdx, pAuxPtr);
-      }
-      break;
-
-    case LCTR_PDU_AUX_SYNC_IND:
-      pAdvSet->perParam.perOffsUsec = 0;
-      /* Compute auxiliary PDU AuxPtr fields (PDU is an auxiliary PDU). */
-      if (pAuxPtr)
-      {
-        BbBleData_t * const pBle = &pAdvSet->auxBleData;
-
-        /* Now the PDU length/duration is known, complete AuxPtr fields for next CHAIN_IND. */
-        pAdvSet->perParam.perOffsUsec = SchBleCalcAuxPktDurationUsec(pBle->chan.txPhy, pBle->chan.initTxPhyOptions, LL_ADV_HDR_LEN + pPduHdr->len) +
-                                        WSF_MAX(pAdvSet->auxDelayUsec, pLctrRtCfg->auxDelayUsec);
-        pAdvSet->perParam.perOffsUsec = WSF_MIN(pAdvSet->perParam.perOffsUsec, LL_AUX_PTR_MAX_USEC);
-
-        lctrPackAuxPtr(pAdvSet, pAdvSet->perParam.perOffsUsec, pAdvSet->perParam.perChIdx, pAuxPtr);
-      }
-      break;
-  }
-
-  return pBuf - pPduBuf;
+    return 0;
+//  uint8_t extHdrFlags = 0;
+//  pPduHdr->len = 0;
+//  uint8_t *pAuxPtr = NULL;
+//
+//  uint8_t *pExtHdrBuf = pPduBuf + LL_ADV_HDR_LEN + LCTR_EXT_HDR_CMN_LEN;
+//  uint8_t *pBuf = pExtHdrBuf + LCTR_EXT_HDR_FLAG_LEN;
+//
+//  /* Determine the superior PDU. */
+//  if (commExtAdvPdu == LCTR_PDU_AUX_CHAIN_IND)
+//  {
+//    if (isPeriodic)
+//    {
+//      commExtAdvPdu = LCTR_PDU_AUX_SYNC_IND;
+//    }
+//    else
+//    {
+//      commExtAdvPdu = LCTR_PDU_AUX_ADV_IND;
+//    }
+//  }
+//
+//  if ((pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_OMIT_AA_BIT) == 0)
+//  {
+//    if ((manExtHdrFlags & LL_EXT_HDR_ADV_ADDR_BIT) ||
+//        ((optExtHdrFlags & LL_EXT_HDR_ADV_ADDR_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_ADV_ADDR_BIT))))
+//    {
+//      /* Pack AdvA */
+//      extHdrFlags |= LL_EXT_HDR_ADV_ADDR_BIT;
+//      BDA64_TO_BSTREAM(pBuf, pAdvSet->advA);
+//#if (LL_ENABLE_TESTER == TRUE)
+//      if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
+//          (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_ADV_ADDR_BIT))
+//      {
+//        Bda64ToBstream(pBuf - BDA_ADDR_LEN, llTesterCb.extHdr.AdvA);
+//      }
+//#endif
+//    }
+//  }
+//
+//  if ((manExtHdrFlags & LL_EXT_HDR_TGT_ADDR_BIT) ||
+//      ((optExtHdrFlags & LL_EXT_HDR_TGT_ADDR_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_TGT_ADDR_BIT))))
+//  {
+//    /* Pack TargetA */
+//    extHdrFlags |= LL_EXT_HDR_TGT_ADDR_BIT;
+//    BDA64_TO_BSTREAM(pBuf, pAdvSet->tgtA);
+//
+//#if (LL_ENABLE_TESTER == TRUE)
+//    if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
+//        (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_TGT_ADDR_BIT))
+//    {
+//      Bda64ToBstream(pBuf - BDA_ADDR_LEN, llTesterCb.extHdr.TargetA);
+//    }
+//#endif
+//  }
+//
+//  if ((manExtHdrFlags & LL_EXT_HDR_ADI_BIT) ||
+//      ((optExtHdrFlags & LL_EXT_HDR_ADI_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_ADI_BIT))))
+//  {
+//    /* Pack AdvDataInfo */
+//    extHdrFlags |= LL_EXT_HDR_ADI_BIT;
+//    UINT16_TO_BSTREAM(pBuf, (pAdvSet->param.advSID << 12) | ((pAdvSet->param.advDID & 0x0FFF) << 0));
+//
+//#if (LL_ENABLE_TESTER == TRUE)
+//    if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
+//        (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_ADI_BIT))
+//    {
+//      UINT16_TO_BUF(pBuf - sizeof(uint16_t), llTesterCb.extHdr.ADI);
+//    }
+//#endif
+//  }
+//
+//  unsigned int availDataLen = LL_EXT_ADVB_MAX_LEN - (pBuf - pPduBuf);
+//  bool_t syncInfoNeeded = FALSE;
+//  if ((manExtHdrFlags & LL_EXT_HDR_SYNC_INFO_BIT) ||
+//      ((optExtHdrFlags & LL_EXT_HDR_SYNC_INFO_BIT) && (!(pAdvSet->extHdrFlags & LL_EXT_HDR_SYNC_INFO_BIT))))
+//  {
+//    syncInfoNeeded = TRUE;
+//    /* Reserve packet space now, pack later. */
+//    availDataLen -= LL_SYNC_INFO_LEN;
+//  }
+//
+//  bool_t txPwrNeeded = FALSE;
+//  /* Tx Power field is never mandatory; skip check. */
+//  if ((optExtHdrFlags & LL_EXT_HDR_TX_PWR_BIT) &&
+//      (((commExtAdvPdu == LCTR_PDU_AUX_SYNC_IND) && (pAdvSet->perParam.advEventProp & LL_EXT_HDR_TX_PWR_BIT)) ||
+//       ((commExtAdvPdu != LCTR_PDU_AUX_SYNC_IND) && (pAdvSet->param.advEventProp & LL_EXT_HDR_TX_PWR_BIT))))
+//  {
+//    txPwrNeeded = TRUE;
+//    /* Reserve packet space now, pack later. */
+//    availDataLen -= LCTR_TX_POWER_LEN;
+//  }
+//
+//  uint16_t remDataLen = 0;
+//  if (pDataBuf)
+//  {
+//    remDataLen = pDataBuf->len - pDataBuf->txOffs;
+//    if ((optExtHdrFlags & LL_EXT_HDR_AUX_PTR_BIT) &&  /* Allow fragmentation only if AUX_CHAIN_IND is allowed. */
+//        (pDataBuf->fragPref == LL_ADV_DATA_FRAG_ALLOW))
+//    {
+//      /* Adjust to fragment size. */
+//      availDataLen = WSF_MIN(pAdvSet->advDataFragLen, availDataLen);
+//    }
+//  }
+//
+//  if ((manExtHdrFlags & LL_EXT_HDR_AUX_PTR_BIT) ||
+//      ((optExtHdrFlags & LL_EXT_HDR_AUX_PTR_BIT) && (remDataLen > availDataLen)))
+//  {
+//    /* Pack AuxPtr. */
+//    extHdrFlags |= LL_EXT_HDR_AUX_PTR_BIT;
+//    pAuxPtr = pBuf;
+//
+//    /* Skip AuxPtr field; contents filled when values are known. */
+//    pBuf += LCTR_AUX_PTR_LEN;
+//  }
+//
+//  if (syncInfoNeeded)
+//  {
+//    /* Pack SyncInfo */
+//    extHdrFlags |= LL_EXT_HDR_SYNC_INFO_BIT;
+//    uint8_t *pSyncInfo = pBuf;
+//    lctrPackSyncInfo(pAdvSet, pSyncInfo);
+//    pBuf += LL_SYNC_INFO_LEN;
+//  }
+//
+//  if (txPwrNeeded)
+//  {
+//    /* Pack TxPower */
+//    extHdrFlags |= LL_EXT_HDR_TX_PWR_BIT;
+//    int8_t actTxPwr = PalRadioGetActualTxPower(pAdvSet->bleData.chan.txPower, TRUE);
+//#if (LL_ENABLE_TESTER == TRUE)
+//    if ((llTesterCb.extHdr.pduMatchMask & (1 << pPduHdr->pduType)) &&
+//        (llTesterCb.extHdr.modifyMask & LL_EXT_HDR_TX_PWR_BIT))
+//    {
+//      actTxPwr = llTesterCb.extHdr.TxPower;
+//    }
+//#endif
+//    UINT8_TO_BSTREAM(pBuf, (uint8_t)actTxPwr);
+//  }
+//
+//  /* ACAD assembly. */
+//  bool_t acadPresent = FALSE;
+//  if (commExtAdvPdu == LCTR_PDU_AUX_SYNC_IND)
+//  {
+//    for (unsigned int acadId = 0; acadId < LCTR_ACAD_NUM_ID; acadId++)
+//    {
+//      if (pAdvSet->acadParams[acadId].hdr.state == LCTR_ACAD_STATE_ENABLED)
+//      {
+//        uint8_t acadLen = LL_ACAD_OPCODE_LEN + LL_ACAD_LEN_FIELD_LEN
+//                          + pAdvSet->acadParams[acadId].hdr.len;
+//
+//        uint8_t availExtHdrLen = LL_EXT_ADV_HDR_MAX_LEN - (pBuf - pExtHdrBuf);
+//
+//        /* Only add ACAD if space available. */
+//        if (acadLen <= availExtHdrLen)
+//        {
+//          acadPresent = TRUE;
+//
+//          /* Pack ACAD immediately after the Extended Header. */
+//          pBuf += lctrPackAcad[acadId](pAdvSet, pBuf);
+//        }
+//      }
+//    }
+//  }
+//
+//  if (!extHdrFlags && !acadPresent)
+//  {
+//    /* Recover optional ExtHdrFlag field since it is not used. */
+//    pBuf = pExtHdrBuf;
+//  }
+//
+//  /* Assign AdvData to this PDU, defer buffer assembly to DMA gather. */
+//  uint8_t advDataLen = 0;
+//  if (remDataLen)
+//  {
+//    const unsigned int maxAvailDataLen = LL_EXT_ADVB_MAX_LEN - (pBuf - pPduBuf);
+//    availDataLen = WSF_MIN(maxAvailDataLen, availDataLen);  /* Limit to maximum packet size. */
+//    advDataLen = WSF_MIN(remDataLen, availDataLen);         /* Reduce to remaining data. */
+//
+//    /* Commit AdvData fragment to this PDU. */
+//    pDataBuf->txOffs += advDataLen;
+//  }
+//
+//  /* Pack Advertising Header now that Extended Advertising Header length is known. */
+//  uint16_t extHdrLen = pBuf - pExtHdrBuf;
+//  pPduHdr->len = LCTR_EXT_HDR_CMN_LEN + extHdrLen + advDataLen;
+//
+//  lctrPackAdvbPduHdr(pPduBuf, pPduHdr);
+//
+//  /* Pack Extended Advertising header; unconditionally write even if unused. */
+//  pPduBuf[LL_ADV_HDR_LEN + 0] = extHdrLen |         /* Extended Header Length */
+//                                (advMode << 6);     /* AdvMode */
+//  pPduBuf[LL_ADV_HDR_LEN + 1] = extHdrFlags;        /* Extended Header Flags */
+//
+//  switch (commExtAdvPdu)
+//  {
+//    case LCTR_PDU_ADV_EXT_IND:
+//      pAdvSet->auxOffsUsec = 0;
+//      pAdvSet->extHdrFlags = extHdrFlags;
+//      /* AUX Offset field set dynamically in lctrSlvTxSetupExtAdvHandler() after AuxBod is scheduled. */
+//      pAdvSet->pExtAdvAuxPtr = pAuxPtr;
+//      break;
+//
+//    case LCTR_PDU_AUX_ADV_IND:
+//      /* Compute auxiliary PDU AuxPtr fields (PDU is an auxiliary PDU). */
+//      pAdvSet->auxOffsUsec = 0;
+//      if (pAuxPtr)
+//      {
+//        BbBleData_t * const pBle = &pAdvSet->auxBleData;
+//        /* Now the PDU length/duration is known, complete AuxPtr fields for next CHAIN_IND. */
+//        pAdvSet->auxOffsUsec = SchBleCalcAuxPktDurationUsec(pBle->chan.txPhy, pBle->chan.initTxPhyOptions, LL_ADV_HDR_LEN + pPduHdr->len) +
+//        WSF_MAX(pAdvSet->auxDelayUsec, pLctrRtCfg->auxDelayUsec);
+//        pAdvSet->auxOffsUsec = WSF_MIN(pAdvSet->auxOffsUsec, LL_AUX_PTR_MAX_USEC);
+//
+//        /* Round up auxOffsetUsec if necessary. */
+//        pAdvSet->auxOffsUsec = SchBleGetAlignedAuxOffsUsec(pAdvSet->auxOffsUsec);
+//
+//        lctrPackAuxPtr(pAdvSet, pAdvSet->auxOffsUsec, pAdvSet->auxChIdx, pAuxPtr);
+//      }
+//      break;
+//
+//    case LCTR_PDU_AUX_SCAN_RSP:
+//    case LCTR_PDU_AUX_CONNECT_RSP:
+//      pAdvSet->auxOffsUsec = 0;
+//      /* Compute auxiliary PDU AuxPtr fields (PDU is an auxiliary PDU). */
+//      if (pAuxPtr)
+//      {
+//        BbBleData_t * const pBle = &pAdvSet->auxBleData;
+//
+//        /* Now the PDU length/duration is known, complete AuxPtr fields for next CHAIN_IND. */
+//        pAdvSet->auxOffsUsec = SchBleCalcAuxPktDurationUsec(pBle->chan.txPhy, (pBle->chan.tifsTxPhyOptions != BB_PHY_OPTIONS_DEFAULT) ? pBle->chan.tifsTxPhyOptions : pBle->op.slvAuxAdv.auxRxPhyOptions, LL_ADV_HDR_LEN + pPduHdr->len) +
+//                               WSF_MAX(pAdvSet->auxDelayUsec, pLctrRtCfg->auxDelayUsec);
+//        pAdvSet->auxOffsUsec = WSF_MIN(pAdvSet->auxOffsUsec, LL_AUX_PTR_MAX_USEC);
+//
+//        /* Round up auxOffsetUsec if necessary. */
+//        pAdvSet->auxOffsUsec = SchBleGetAlignedAuxOffsUsec(pAdvSet->auxOffsUsec);
+//
+//        lctrPackAuxPtr(pAdvSet, pAdvSet->auxOffsUsec, pAdvSet->auxChIdx, pAuxPtr);
+//      }
+//      break;
+//
+//    case LCTR_PDU_AUX_SYNC_IND:
+//      pAdvSet->perParam.perOffsUsec = 0;
+//      /* Compute auxiliary PDU AuxPtr fields (PDU is an auxiliary PDU). */
+//      if (pAuxPtr)
+//      {
+//        BbBleData_t * const pBle = &pAdvSet->auxBleData;
+//
+//        /* Now the PDU length/duration is known, complete AuxPtr fields for next CHAIN_IND. */
+//        pAdvSet->perParam.perOffsUsec = SchBleCalcAuxPktDurationUsec(pBle->chan.txPhy, pBle->chan.initTxPhyOptions, LL_ADV_HDR_LEN + pPduHdr->len) +
+//                                        WSF_MAX(pAdvSet->auxDelayUsec, pLctrRtCfg->auxDelayUsec);
+//        pAdvSet->perParam.perOffsUsec = WSF_MIN(pAdvSet->perParam.perOffsUsec, LL_AUX_PTR_MAX_USEC);
+//
+//        lctrPackAuxPtr(pAdvSet, pAdvSet->perParam.perOffsUsec, pAdvSet->perParam.perChIdx, pAuxPtr);
+//      }
+//      break;
+//  }
+//
+//  return pBuf - pPduBuf;
 }
 
 /*************************************************************************************************/

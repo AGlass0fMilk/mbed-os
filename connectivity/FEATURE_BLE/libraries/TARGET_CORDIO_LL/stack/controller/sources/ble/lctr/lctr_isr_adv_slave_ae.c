@@ -670,271 +670,271 @@ void lctrSlvAcadHandler(lctrAdvSet_t *pAdvSet)
 /*************************************************************************************************/
 void lctrSlvExtAdvEndOp(BbOpDesc_t *pOp)
 {
-  lctrAdvSet_t * const pAdvSet = pOp->pCtx;
-  BbBleData_t * const pBle = pOp->prot.pBle;
-  BbBleSlvAdvEvent_t * const pAdv = &pBle->op.slvAdv;
-
-  WSF_ASSERT(pOp->protId == BB_PROT_BLE);
-  WSF_ASSERT(pOp->prot.pBle->chan.opType == BB_BLE_OP_SLV_ADV_EVENT);
-
-  do
-  {
-    if (pAdvSet->shutdown || pAdvSet->connIndRcvd)
-    {
-    }
-    else if (!pAdvSet->auxBodUsed && pAdvSet->maxEvents &&
-             (++pAdvSet->numEvents >= pAdvSet->maxEvents))
-    {
-      pAdvSet->termReason = LL_ERROR_CODE_LIMIT_REACHED;
-    }
-    else
-    {
-      /* Continue operation. */
-      break;
-    }
-
-    /* Disable (do not reschedule) advertising PDU. */
-    pAdvSet->shutdown = TRUE;
-
-    if (pAdvSet->auxBodUsed &&
-        (pAdvSet->bodTermCnt++ == 0))
-    {
-      /* Ensure all BODs are de-scheduled. */
-      bool_t result = SchRemove(&pAdvSet->auxAdvBod);
-
-      (void)result;
-    }
-    else
-    {
-      /* Last BOD to terminate; send terminate event. */
-      lctrSendAdvSetMsg(pAdvSet, LCTR_EXT_ADV_MSG_TERMINATE);
-    }
-    return;
-
-  } while (FALSE);
-
-  if (pBle->chan.tifsTxPhyOptions != BB_PHY_OPTIONS_DEFAULT)
-  {
-    /* Set PHY options to host defined behavior for ADV_EXT_IND. */
-    pBle->chan.initTxPhyOptions = pBle->chan.tifsTxPhyOptions;
-  }
-  else
-  {
-    /* Set PHY options to default behavior for ADV_EXT_IND. */
-    pBle->chan.initTxPhyOptions = lmgrSlvAdvCb.defTxPhyOpts;
-  }
-
-  /*** Update advertising data ***/
-
-  if ((pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_LEGACY_ADV_BIT) == 0)
-  {
-    /* Update superior PDU including AdvA and TgtA. */
-    pAdv->txAdvLen = lctrPackAdvExtIndPdu(pAdvSet, pAdvSet->advHdrBuf, FALSE);
-
-    if (pAdvSet->advData.alt.ext.modified &&
-        !pAdvSet->auxBodUsed)
-    {
-      pAdvSet->advData.alt.ext.modified = FALSE;
-      memcpy(pAdvSet->advData.pBuf, pAdvSet->advData.alt.ext.buf, pAdvSet->advData.alt.ext.len);
-      pAdvSet->advData.len = pAdvSet->advData.alt.ext.len;
-      pAdvSet->param.advDID = pAdvSet->advData.alt.ext.did;
-      pAdvSet->advData.fragPref = pAdvSet->advData.alt.ext.fragPref;
-
-      /* Advertising offloading to auxiliary channel. */
-      if (pAdvSet->pExtAdvAuxPtr)
-      {
-        /* Enable auxiliary PDU. */
-        lctrSlvAuxNonConnNonScanBuildOp(pAdvSet);
-        pAdvSet->auxBodUsed = TRUE;
-      }
-    }
-
-    /* Schedule auxiliary BOD if periodic advertising is enabled. */
-    if ((pAdvSet->perParam.perAuxStart == TRUE) &&
-        pAdvSet->perParam.perAdvEnabled &&
-        pAdvSet->pExtAdvAuxPtr &&
-        (pAdvSet->auxBodUsed == FALSE))
-    {
-      pAdvSet->perParam.perAuxStart = FALSE;
-      lctrSlvAuxNonConnNonScanBuildOp(pAdvSet);
-      pAdvSet->auxBodUsed = TRUE;
-    }
-
-    /* Update Data ID when periodic advertising is enabled or disabled. */
-    if ((pAdvSet->didPerUpdate == TRUE) && (pAdvSet->auxBodUsed == FALSE))
-    {
-      pAdvSet->param.advDID = pAdvSet->advData.alt.ext.did;
-      pAdvSet->didPerUpdate = FALSE;
-    }
-  }
-  else /* (pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_LEGACY_ADV_BIT) */
-  {
-    /* Update local private address. */
-    bool_t   update = FALSE;
-    uint64_t newAddr = 0;
-    if (pAdvSet->bdAddrRndMod &&
-        (lmgrSlvAdvCb.ownAddrType == LL_ADDR_RANDOM))
-    {
-      pAdvSet->bdAddrRndMod = FALSE;
-      pAdvSet->advA = pAdvSet->bdAddrRnd;
-
-      update  = TRUE;
-      newAddr = pAdvSet->bdAddrRnd;
-    }
-    else if (lmgrSlvAdvCb.ownAddrType & LL_ADDR_IDENTITY_BIT)
-    {
-      uint64_t localRpa;
-      if (BbBleResListReadLocal(pAdvSet->param.peerAddrType, pAdvSet->param.peerAddr, &localRpa))
-      {
-        update = TRUE;
-        newAddr = localRpa;
-        pAdvSet->advA = localRpa;
-        lmgrSlvAdvCb.localRpa    = localRpa;
-      }
-    }
-
-    if (update)
-    {
-      uint8_t *pBuf = pAdvSet->advHdrBuf + LL_ADV_HDR_LEN;
-
-      BDA64_TO_BSTREAM(pBuf, newAddr);                    /* update adv PDU */
-      memcpy(pAdvSet->scanRspHdrBuf + LL_ADV_HDR_LEN,     /* update scan response PDU */
-             pAdvSet->advHdrBuf + LL_ADV_HDR_LEN,
-             BDA_ADDR_LEN);
-      pBle->pduFilt.localAddrMatch = newAddr;
-    }
-
-    /* Update peer address. */
-    if ((pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_DIRECT_ADV_BIT) == LL_ADV_EVT_PROP_DIRECT_ADV_BIT)
-    {
-      if (BB_BLE_PDU_FILT_FLAG_IS_SET(&pBle->pduFilt, PEER_ADDR_MATCH_ENA) &&
-          BB_BLE_PDU_FILT_FLAG_IS_SET(&pBle->pduFilt, PEER_ADDR_RES_ENA))
-      {
-        uint64_t peerRpa;
-
-        if (BbBleResListReadPeer(pAdvSet->param.peerAddrType, pAdvSet->param.peerAddr, &peerRpa))
-        {
-          uint8_t *pBuf = pAdvSet->advHdrBuf + LL_ADV_HDR_LEN + BDA_ADDR_LEN;
-          BDA64_TO_BSTREAM(pBuf, peerRpa);                /* update adv PDU */
-          pAdvSet->tgtA    = peerRpa;
-        }
-      }
-    }
-
-    if (pAdvSet->advData.alt.legacy.modified)
-    {
-      pAdvSet->advData.alt.legacy.modified = FALSE;
-
-      switch ((pAdv->pTxAdvBuf[0] >> LCTR_ADV_HDR_PDU_TYPE_SHIFT) & 0xF)
-      {
-        case LL_PDU_ADV_IND:
-        case LL_PDU_ADV_NONCONN_IND:
-        case LL_PDU_ADV_SCAN_IND:
-          pAdv->txAdvLen = LL_ADVB_MIN_LEN + pAdvSet->advData.alt.legacy.len;
-          pAdv->pTxAdvBuf[LL_ADV_HDR_LEN_OFFS] = LL_ADV_PREFIX_LEN + pAdvSet->advData.alt.legacy.len;
-          memcpy(pAdv->pTxAdvBuf + LL_ADVB_MIN_LEN,
-                 pAdvSet->advData.alt.legacy.buf,
-                 pAdvSet->advData.alt.legacy.len);
-          #if (LL_ENABLE_TESTER)
-            if (pAdv->pTxAdvBuf == llTesterCb.txAdvPdu)
-            {
-              pAdv->txAdvLen = llTesterCb.txAdvPduLen;
-            }
-          #endif
-          break;
-        case LL_PDU_ADV_DIRECT_IND:
-        default:
-          break;
-      }
-    }
-
-    if (pAdvSet->scanRspData.alt.legacy.modified)
-    {
-      pAdvSet->scanRspData.alt.legacy.modified = FALSE;
-      pAdv->txRspLen = LL_ADVB_MIN_LEN + pAdvSet->scanRspData.alt.legacy.len;
-      pAdv->pTxRspBuf[LL_ADV_HDR_LEN_OFFS] = LL_SCAN_PREFIX_LEN + pAdvSet->scanRspData.alt.legacy.len;
-      memcpy(pAdv->pTxRspBuf + LL_ADVB_MIN_LEN,
-             pAdvSet->scanRspData.alt.legacy.buf,
-             pAdvSet->scanRspData.alt.legacy.len);
-      #if (LL_ENABLE_TESTER)
-        if (pAdv->pTxAdvBuf == llTesterCb.txAdvPdu)
-        {
-          pAdv->txRspLen = llTesterCb.txAdvPduLen;
-        }
-      #endif
-    }
-  }
-
-  SchBleCalcAdvOpDuration(pOp, 0);
-
-  /*** Reschedule operation ***/
-
-  const uint8_t LEGACY_HIGH_DUTY = (LL_ADV_EVT_PROP_LEGACY_ADV_BIT | LL_ADV_EVT_PROP_HIGH_DUTY_ADV_BIT |
-                                    LL_ADV_EVT_PROP_DIRECT_ADV_BIT | LL_ADV_EVT_PROP_CONN_ADV_BIT);
-
-  if ((pAdvSet->param.advEventProp & LEGACY_HIGH_DUTY) == LEGACY_HIGH_DUTY)
-  {
-    {
-      uint32_t advEventStartUsec = pOp->dueUsec;
-      uint32_t advTermCntDown = pAdvSet->param.priAdvTermCntDownUsec;
-      bool_t result = FALSE;
-
-      while (!result && pAdvSet->param.priAdvTermCntDownUsec)
-      {
-        result = SchInsertLateAsPossible(pOp, pAdvSet->param.priAdvInterMinUsec, pAdvSet->param.priAdvInterMaxUsec);
-        if (!result)
-        {
-          pOp->dueUsec += pAdvSet->param.priAdvInterMaxUsec;
-        }
-
-        uint32_t advEventDur = BbGetTargetTimeDelta(pOp->dueUsec, advEventStartUsec);
-
-        if ((advEventDur + pAdvSet->param.priAdvInterMaxUsec) < advTermCntDown)
-        {
-          pAdvSet->param.priAdvTermCntDownUsec = advTermCntDown - advEventDur;
-        }
-        else
-        {
-          /* Terminate at end of next advertising event. */
-          pAdvSet->param.priAdvTermCntDownUsec = 0;
-        }
-      }
-
-      if (!result && !pAdvSet->param.priAdvTermCntDownUsec)
-      {
-        pAdvSet->termReason = LL_ERROR_CODE_ADV_TIMEOUT;
-        lctrSendAdvSetMsg(pAdvSet, LCTR_EXT_ADV_MSG_TERMINATE);
-      }
-    }
-  }
-  else
-  {
-    uint32_t totalDuration = pOp->minDurUsec;
-    uint32_t prefIntervalUsec;
-
-    if (lmgrGetOpFlag(LL_OP_MODE_FLAG_ENA_ADV_DLY))
-    {
-      pOp->dueUsec += BB_BLE_TO_US(lctrCalcAdvDelay());
-    }
-
-    if (pAdvSet->auxBodUsed)
-    {
-      totalDuration += pAdvSet->auxAdvBod.minDurUsec;
-    }
-
-    /* Pick an interval so that advertising (primary + aux) BOD would take less than half of total bandwidth. */
-    prefIntervalUsec = WSF_MAX(totalDuration * 2, pAdvSet->param.priAdvInterMinUsec);
-
-    if (pAdvSet->advBodAbort)
-    {
-      pAdvSet->advBodAbort = FALSE;
-      (void)SchInsertEarlyAsPossible(pOp, 0, LCTR_SCH_MAX_SPAN);
-    }
-    else
-    {
-      (void)SchInsertEarlyAsPossible(pOp, prefIntervalUsec, LCTR_SCH_MAX_SPAN);
-    }
-  }
+//  lctrAdvSet_t * const pAdvSet = pOp->pCtx;
+//  BbBleData_t * const pBle = pOp->prot.pBle;
+//  BbBleSlvAdvEvent_t * const pAdv = &pBle->op.slvAdv;
+//
+//  WSF_ASSERT(pOp->protId == BB_PROT_BLE);
+//  WSF_ASSERT(pOp->prot.pBle->chan.opType == BB_BLE_OP_SLV_ADV_EVENT);
+//
+//  do
+//  {
+//    if (pAdvSet->shutdown || pAdvSet->connIndRcvd)
+//    {
+//    }
+//    else if (!pAdvSet->auxBodUsed && pAdvSet->maxEvents &&
+//             (++pAdvSet->numEvents >= pAdvSet->maxEvents))
+//    {
+//      pAdvSet->termReason = LL_ERROR_CODE_LIMIT_REACHED;
+//    }
+//    else
+//    {
+//      /* Continue operation. */
+//      break;
+//    }
+//
+//    /* Disable (do not reschedule) advertising PDU. */
+//    pAdvSet->shutdown = TRUE;
+//
+//    if (pAdvSet->auxBodUsed &&
+//        (pAdvSet->bodTermCnt++ == 0))
+//    {
+//      /* Ensure all BODs are de-scheduled. */
+//      bool_t result = SchRemove(&pAdvSet->auxAdvBod);
+//
+//      (void)result;
+//    }
+//    else
+//    {
+//      /* Last BOD to terminate; send terminate event. */
+//      lctrSendAdvSetMsg(pAdvSet, LCTR_EXT_ADV_MSG_TERMINATE);
+//    }
+//    return;
+//
+//  } while (FALSE);
+//
+//  if (pBle->chan.tifsTxPhyOptions != BB_PHY_OPTIONS_DEFAULT)
+//  {
+//    /* Set PHY options to host defined behavior for ADV_EXT_IND. */
+//    pBle->chan.initTxPhyOptions = pBle->chan.tifsTxPhyOptions;
+//  }
+//  else
+//  {
+//    /* Set PHY options to default behavior for ADV_EXT_IND. */
+//    pBle->chan.initTxPhyOptions = lmgrSlvAdvCb.defTxPhyOpts;
+//  }
+//
+//  /*** Update advertising data ***/
+//
+//  if ((pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_LEGACY_ADV_BIT) == 0)
+//  {
+//    /* Update superior PDU including AdvA and TgtA. */
+//    pAdv->txAdvLen = lctrPackAdvExtIndPdu(pAdvSet, pAdvSet->advHdrBuf, FALSE);
+//
+//    if (pAdvSet->advData.alt.ext.modified &&
+//        !pAdvSet->auxBodUsed)
+//    {
+//      pAdvSet->advData.alt.ext.modified = FALSE;
+//      memcpy(pAdvSet->advData.pBuf, pAdvSet->advData.alt.ext.buf, pAdvSet->advData.alt.ext.len);
+//      pAdvSet->advData.len = pAdvSet->advData.alt.ext.len;
+//      pAdvSet->param.advDID = pAdvSet->advData.alt.ext.did;
+//      pAdvSet->advData.fragPref = pAdvSet->advData.alt.ext.fragPref;
+//
+//      /* Advertising offloading to auxiliary channel. */
+//      if (pAdvSet->pExtAdvAuxPtr)
+//      {
+//        /* Enable auxiliary PDU. */
+//        lctrSlvAuxNonConnNonScanBuildOp(pAdvSet);
+//        pAdvSet->auxBodUsed = TRUE;
+//      }
+//    }
+//
+//    /* Schedule auxiliary BOD if periodic advertising is enabled. */
+//    if ((pAdvSet->perParam.perAuxStart == TRUE) &&
+//        pAdvSet->perParam.perAdvEnabled &&
+//        pAdvSet->pExtAdvAuxPtr &&
+//        (pAdvSet->auxBodUsed == FALSE))
+//    {
+//      pAdvSet->perParam.perAuxStart = FALSE;
+//      lctrSlvAuxNonConnNonScanBuildOp(pAdvSet);
+//      pAdvSet->auxBodUsed = TRUE;
+//    }
+//
+//    /* Update Data ID when periodic advertising is enabled or disabled. */
+//    if ((pAdvSet->didPerUpdate == TRUE) && (pAdvSet->auxBodUsed == FALSE))
+//    {
+//      pAdvSet->param.advDID = pAdvSet->advData.alt.ext.did;
+//      pAdvSet->didPerUpdate = FALSE;
+//    }
+//  }
+//  else /* (pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_LEGACY_ADV_BIT) */
+//  {
+//    /* Update local private address. */
+//    bool_t   update = FALSE;
+//    uint64_t newAddr = 0;
+//    if (pAdvSet->bdAddrRndMod &&
+//        (lmgrSlvAdvCb.ownAddrType == LL_ADDR_RANDOM))
+//    {
+//      pAdvSet->bdAddrRndMod = FALSE;
+//      pAdvSet->advA = pAdvSet->bdAddrRnd;
+//
+//      update  = TRUE;
+//      newAddr = pAdvSet->bdAddrRnd;
+//    }
+//    else if (lmgrSlvAdvCb.ownAddrType & LL_ADDR_IDENTITY_BIT)
+//    {
+//      uint64_t localRpa;
+//      if (BbBleResListReadLocal(pAdvSet->param.peerAddrType, pAdvSet->param.peerAddr, &localRpa))
+//      {
+//        update = TRUE;
+//        newAddr = localRpa;
+//        pAdvSet->advA = localRpa;
+//        lmgrSlvAdvCb.localRpa    = localRpa;
+//      }
+//    }
+//
+//    if (update)
+//    {
+//      uint8_t *pBuf = pAdvSet->advHdrBuf + LL_ADV_HDR_LEN;
+//
+//      BDA64_TO_BSTREAM(pBuf, newAddr);                    /* update adv PDU */
+//      memcpy(pAdvSet->scanRspHdrBuf + LL_ADV_HDR_LEN,     /* update scan response PDU */
+//             pAdvSet->advHdrBuf + LL_ADV_HDR_LEN,
+//             BDA_ADDR_LEN);
+//      pBle->pduFilt.localAddrMatch = newAddr;
+//    }
+//
+//    /* Update peer address. */
+//    if ((pAdvSet->param.advEventProp & LL_ADV_EVT_PROP_DIRECT_ADV_BIT) == LL_ADV_EVT_PROP_DIRECT_ADV_BIT)
+//    {
+//      if (BB_BLE_PDU_FILT_FLAG_IS_SET(&pBle->pduFilt, PEER_ADDR_MATCH_ENA) &&
+//          BB_BLE_PDU_FILT_FLAG_IS_SET(&pBle->pduFilt, PEER_ADDR_RES_ENA))
+//      {
+//        uint64_t peerRpa;
+//
+//        if (BbBleResListReadPeer(pAdvSet->param.peerAddrType, pAdvSet->param.peerAddr, &peerRpa))
+//        {
+//          uint8_t *pBuf = pAdvSet->advHdrBuf + LL_ADV_HDR_LEN + BDA_ADDR_LEN;
+//          BDA64_TO_BSTREAM(pBuf, peerRpa);                /* update adv PDU */
+//          pAdvSet->tgtA    = peerRpa;
+//        }
+//      }
+//    }
+//
+//    if (pAdvSet->advData.alt.legacy.modified)
+//    {
+//      pAdvSet->advData.alt.legacy.modified = FALSE;
+//
+//      switch ((pAdv->pTxAdvBuf[0] >> LCTR_ADV_HDR_PDU_TYPE_SHIFT) & 0xF)
+//      {
+//        case LL_PDU_ADV_IND:
+//        case LL_PDU_ADV_NONCONN_IND:
+//        case LL_PDU_ADV_SCAN_IND:
+//          pAdv->txAdvLen = LL_ADVB_MIN_LEN + pAdvSet->advData.alt.legacy.len;
+//          pAdv->pTxAdvBuf[LL_ADV_HDR_LEN_OFFS] = LL_ADV_PREFIX_LEN + pAdvSet->advData.alt.legacy.len;
+//          memcpy(pAdv->pTxAdvBuf + LL_ADVB_MIN_LEN,
+//                 pAdvSet->advData.alt.legacy.buf,
+//                 pAdvSet->advData.alt.legacy.len);
+//          #if (LL_ENABLE_TESTER)
+//            if (pAdv->pTxAdvBuf == llTesterCb.txAdvPdu)
+//            {
+//              pAdv->txAdvLen = llTesterCb.txAdvPduLen;
+//            }
+//          #endif
+//          break;
+//        case LL_PDU_ADV_DIRECT_IND:
+//        default:
+//          break;
+//      }
+//    }
+//
+//    if (pAdvSet->scanRspData.alt.legacy.modified)
+//    {
+//      pAdvSet->scanRspData.alt.legacy.modified = FALSE;
+//      pAdv->txRspLen = LL_ADVB_MIN_LEN + pAdvSet->scanRspData.alt.legacy.len;
+//      pAdv->pTxRspBuf[LL_ADV_HDR_LEN_OFFS] = LL_SCAN_PREFIX_LEN + pAdvSet->scanRspData.alt.legacy.len;
+//      memcpy(pAdv->pTxRspBuf + LL_ADVB_MIN_LEN,
+//             pAdvSet->scanRspData.alt.legacy.buf,
+//             pAdvSet->scanRspData.alt.legacy.len);
+//      #if (LL_ENABLE_TESTER)
+//        if (pAdv->pTxAdvBuf == llTesterCb.txAdvPdu)
+//        {
+//          pAdv->txRspLen = llTesterCb.txAdvPduLen;
+//        }
+//      #endif
+//    }
+//  }
+//
+//  SchBleCalcAdvOpDuration(pOp, 0);
+//
+//  /*** Reschedule operation ***/
+//
+//  const uint8_t LEGACY_HIGH_DUTY = (LL_ADV_EVT_PROP_LEGACY_ADV_BIT | LL_ADV_EVT_PROP_HIGH_DUTY_ADV_BIT |
+//                                    LL_ADV_EVT_PROP_DIRECT_ADV_BIT | LL_ADV_EVT_PROP_CONN_ADV_BIT);
+//
+//  if ((pAdvSet->param.advEventProp & LEGACY_HIGH_DUTY) == LEGACY_HIGH_DUTY)
+//  {
+//    {
+//      uint32_t advEventStartUsec = pOp->dueUsec;
+//      uint32_t advTermCntDown = pAdvSet->param.priAdvTermCntDownUsec;
+//      bool_t result = FALSE;
+//
+//      while (!result && pAdvSet->param.priAdvTermCntDownUsec)
+//      {
+//        result = SchInsertLateAsPossible(pOp, pAdvSet->param.priAdvInterMinUsec, pAdvSet->param.priAdvInterMaxUsec);
+//        if (!result)
+//        {
+//          pOp->dueUsec += pAdvSet->param.priAdvInterMaxUsec;
+//        }
+//
+//        uint32_t advEventDur = BbGetTargetTimeDelta(pOp->dueUsec, advEventStartUsec);
+//
+//        if ((advEventDur + pAdvSet->param.priAdvInterMaxUsec) < advTermCntDown)
+//        {
+//          pAdvSet->param.priAdvTermCntDownUsec = advTermCntDown - advEventDur;
+//        }
+//        else
+//        {
+//          /* Terminate at end of next advertising event. */
+//          pAdvSet->param.priAdvTermCntDownUsec = 0;
+//        }
+//      }
+//
+//      if (!result && !pAdvSet->param.priAdvTermCntDownUsec)
+//      {
+//        pAdvSet->termReason = LL_ERROR_CODE_ADV_TIMEOUT;
+//        lctrSendAdvSetMsg(pAdvSet, LCTR_EXT_ADV_MSG_TERMINATE);
+//      }
+//    }
+//  }
+//  else
+//  {
+//    uint32_t totalDuration = pOp->minDurUsec;
+//    uint32_t prefIntervalUsec;
+//
+//    if (lmgrGetOpFlag(LL_OP_MODE_FLAG_ENA_ADV_DLY))
+//    {
+//      pOp->dueUsec += BB_BLE_TO_US(lctrCalcAdvDelay());
+//    }
+//
+//    if (pAdvSet->auxBodUsed)
+//    {
+//      totalDuration += pAdvSet->auxAdvBod.minDurUsec;
+//    }
+//
+//    /* Pick an interval so that advertising (primary + aux) BOD would take less than half of total bandwidth. */
+//    prefIntervalUsec = WSF_MAX(totalDuration * 2, pAdvSet->param.priAdvInterMinUsec);
+//
+//    if (pAdvSet->advBodAbort)
+//    {
+//      pAdvSet->advBodAbort = FALSE;
+//      (void)SchInsertEarlyAsPossible(pOp, 0, LCTR_SCH_MAX_SPAN);
+//    }
+//    else
+//    {
+//      (void)SchInsertEarlyAsPossible(pOp, prefIntervalUsec, LCTR_SCH_MAX_SPAN);
+//    }
+//  }
 }
 
 /*************************************************************************************************/

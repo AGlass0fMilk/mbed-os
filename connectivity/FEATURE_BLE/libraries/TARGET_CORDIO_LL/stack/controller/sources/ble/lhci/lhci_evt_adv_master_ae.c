@@ -247,189 +247,190 @@ static void lhciPackPerSyncTrsfRcvdEvt(uint8_t *pBuf, const LlPerSyncTrsfRcvdInd
 /*************************************************************************************************/
 bool_t lhciMstExtScanEncodeEvtPkt(LlEvt_t *pEvt)
 {
-  bool_t result = FALSE;
-  uint8_t *pEvtBuf;
-
-  switch (pEvt->hdr.event)
-  {
-    case LL_EXT_ADV_REPORT_IND:
-    {
-      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_EXT_ADV_REPORT_EVT) << LHCI_BYTE_TO_BITS(1))) &&
-          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
-      {
-        const uint8_t *pFragStart = pEvt->extAdvReportInd.pData;
-        unsigned int remDataLen = pEvt->extAdvReportInd.len;
-        uint8_t num_buffers = remDataLen/LHCI_EXT_ADV_RPT_DATA_LEN_MAX + (remDataLen % LHCI_EXT_ADV_RPT_DATA_LEN_MAX != 0);
-
-        if ((lhciCb.numAdvReport + num_buffers) > pLctrRtCfg->maxAdvReports)
-        {
-          LL_TRACE_WARN0("LL_EXT_ADV_REPORT_IND, discarded, not enough advRport buffers available");
-          break;
-        }
-
-        do
-        {
-          unsigned int fragLen = WSF_MIN(remDataLen, LHCI_EXT_ADV_RPT_DATA_LEN_MAX);
-          if ((lhciCb.numAdvReport < pLctrRtCfg->maxAdvReports) &&
-              ((pEvtBuf = lhciAllocExtAdvRptEvt(HCI_LE_META_EVT, HCI_LEN_LE_EXT_ADV_REPORT_MIN + fragLen)) != NULL))
-          {
-            remDataLen -= fragLen;
-            lhciCb.numAdvReport++;
-
-            if ((lhciCb.numAdvReport == pLctrRtCfg->maxAdvReports) && (remDataLen > 0))
-            {
-              /* Tell the host the data is truncated because remaining fragments can't be sent. */
-              pEvt->extAdvReportInd.eventType |= LL_RPT_DATA_INC_TRUNC << 5;
-              result = FALSE;
-
-              /* Drop remaining fragments. */
-              remDataLen = 0;
-              LL_TRACE_WARN0("LL_EXT_ADV_REPORT_IND, truncated, not enough advRport buffers");
-            }
-            else
-            {
-              result = TRUE;
-            }
-
-            lhciPackExtAdvRptEvt(pEvtBuf, &pEvt->extAdvReportInd, pFragStart, fragLen);
-            pFragStart += fragLen;
-            lhciSendEvt(pEvtBuf);
-          }
-          else
-          {
-            /* Drop remaining fragments. */
-            remDataLen = 0;
-            result = FALSE;
-          }
-        } while (remDataLen > 0);
-      }
-      break;
-    }
-
-    case LL_EXT_SCAN_ENABLE_CNF:
-      if ((pEvtBuf = lhciAllocEvt(HCI_CMD_CMPL_EVT, HCI_LEN_CMD_CMPL + LHCI_LEN_LE_SET_EXT_SCAN_ENABLE)) != NULL)
-      {
-        uint8_t *pBuf = pEvtBuf;
-        pBuf += lhciPackCmdCompleteEvt(pBuf, HCI_OPCODE_LE_SET_EXT_SCAN_ENABLE);
-        lhciPackCmdCompleteEvtStatus(pBuf, pEvt->hdr.status);
-        lhciSendEvt(pEvtBuf);
-        result = TRUE;
-      }
-      break;
-
-    case LL_SCAN_TIMEOUT_IND:
-    {
-      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_SCAN_TIMEOUT_EVT) << LHCI_BYTE_TO_BITS(2))) &&
-          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
-      {
-        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_SCAN_TIMEOUT)) != NULL)
-        {
-          pEvtBuf[0] = HCI_LE_SCAN_TIMEOUT_EVT;
-          lhciSendEvt(pEvtBuf);
-          result = TRUE;
-        }
-      }
-      break;
-    }
-
-    case LL_PER_ADV_SYNC_ESTD_IND:
-    {
-      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_ADV_SYNC_EST_EVT) << LHCI_BYTE_TO_BITS(1))) &&
-          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
-      {
-        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_ADV_SYNC_EST)) != NULL)
-        {
-          lhciPackPerAdvSyncEstdEvt(pEvtBuf, &pEvt->perAdvSyncEstdCnf);
-          lhciSendEvt(pEvtBuf);
-          result = TRUE;
-        }
-      }
-      break;
-    }
-    case LL_PER_ADV_REPORT_IND:
-    {
-      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_ADV_REPORT_EVT) << LHCI_BYTE_TO_BITS(1))) &&
-          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
-      {
-        const uint8_t *pFragStart = pEvt->perAdvReportInd.pData;
-        unsigned int remDataLen = pEvt->perAdvReportInd.len;
-        uint8_t num_buffers = remDataLen/LHCI_PER_ADV_RPT_DATA_LEN_MAX + (remDataLen % LHCI_PER_ADV_RPT_DATA_LEN_MAX != 0);
-
-        if ((lhciCb.numAdvReport + num_buffers) > pLctrRtCfg->maxAdvReports)
-        {
-          LL_TRACE_WARN0("LL_PER_ADV_REPORT_IND, discarded, not enough advRport buffers available");
-          break;
-        }
-
-        do
-        {
-          unsigned int fragLen = WSF_MIN(remDataLen, (LHCI_PER_ADV_RPT_DATA_LEN_MAX));
-          if ((lhciCb.numAdvReport < pLctrRtCfg->maxAdvReports) &&
-              ((pEvtBuf = lhciAllocPerAdvRptEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_ADV_REPORT + fragLen)) != NULL))
-          {
-            remDataLen -= fragLen;
-            lhciCb.numAdvReport++;
-            if ((lhciCb.numAdvReport == pLctrRtCfg->maxAdvReports) && (remDataLen > 0))
-            {
-              /* Tell the host the data is truncated because remaining fragments can't be sent. */
-              pEvt->perAdvReportInd.dataStatus = LL_RPT_DATA_INC_TRUNC;
-              result = FALSE;
-
-              /* Drop remaining fragments. */
-              remDataLen = 0;
-              LL_TRACE_WARN0("LL_PER_ADV_REPORT_IND, truncated, not enough advRport buffers");
-            }
-            else
-            {
-              result = TRUE;
-            }
-
-            lhciPackPerAdvRptEvt(pEvtBuf, &pEvt->perAdvReportInd, pFragStart, fragLen);
-            pFragStart += fragLen;
-            lhciSendEvt(pEvtBuf);
-          }
-          else
-          {
-            /* Drop remaining fragments. */
-            remDataLen = 0;
-            result = FALSE;
-          }
-        } while (remDataLen > 0);
-      }
-      break;
-    }
-    case LL_PER_ADV_SYNC_LOST_IND:
-    {
-      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_ADV_SYNC_LOST_EVT) << LHCI_BYTE_TO_BITS(1))) &&
-          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
-      {
-        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_ADV_SYNC_LOST)) != NULL)
-        {
-          lhciPackPerAdvSyncLostEvt(pEvtBuf, &pEvt->perAdvSyncLostInd);
-          lhciSendEvt(pEvtBuf);
-          result = TRUE;
-        }
-      }
-      break;
-    }
-    case LL_PER_SYNC_TRSF_RCVD_IND:
-    {
-      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_SYNC_TRSF_RCVT_EVT) << LHCI_BYTE_TO_BITS(2))) &&
-          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
-      {
-        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_SYNC_TRSF_RCVT)) != NULL)
-        {
-          lhciPackPerSyncTrsfRcvdEvt(pEvtBuf, &pEvt->perASyncTrsfRcvdInd);
-          lhciSendEvt(pEvtBuf);
-          result = TRUE;
-        }
-      }
-      break;
-    }
-
-    default:
-      break;
-  }
-
-  return result;
+    return FALSE;
+//  bool_t result = FALSE;
+//  uint8_t *pEvtBuf;
+//
+//  switch (pEvt->hdr.event)
+//  {
+//    case LL_EXT_ADV_REPORT_IND:
+//    {
+//      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_EXT_ADV_REPORT_EVT) << LHCI_BYTE_TO_BITS(1))) &&
+//          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
+//      {
+//        const uint8_t *pFragStart = pEvt->extAdvReportInd.pData;
+//        unsigned int remDataLen = pEvt->extAdvReportInd.len;
+//        uint8_t num_buffers = remDataLen/LHCI_EXT_ADV_RPT_DATA_LEN_MAX + (remDataLen % LHCI_EXT_ADV_RPT_DATA_LEN_MAX != 0);
+//
+//        if ((lhciCb.numAdvReport + num_buffers) > pLctrRtCfg->maxAdvReports)
+//        {
+//          LL_TRACE_WARN0("LL_EXT_ADV_REPORT_IND, discarded, not enough advRport buffers available");
+//          break;
+//        }
+//
+//        do
+//        {
+//          unsigned int fragLen = WSF_MIN(remDataLen, LHCI_EXT_ADV_RPT_DATA_LEN_MAX);
+//          if ((lhciCb.numAdvReport < pLctrRtCfg->maxAdvReports) &&
+//              ((pEvtBuf = lhciAllocExtAdvRptEvt(HCI_LE_META_EVT, HCI_LEN_LE_EXT_ADV_REPORT_MIN + fragLen)) != NULL))
+//          {
+//            remDataLen -= fragLen;
+//            lhciCb.numAdvReport++;
+//
+//            if ((lhciCb.numAdvReport == pLctrRtCfg->maxAdvReports) && (remDataLen > 0))
+//            {
+//              /* Tell the host the data is truncated because remaining fragments can't be sent. */
+//              pEvt->extAdvReportInd.eventType |= LL_RPT_DATA_INC_TRUNC << 5;
+//              result = FALSE;
+//
+//              /* Drop remaining fragments. */
+//              remDataLen = 0;
+//              LL_TRACE_WARN0("LL_EXT_ADV_REPORT_IND, truncated, not enough advRport buffers");
+//            }
+//            else
+//            {
+//              result = TRUE;
+//            }
+//
+//            lhciPackExtAdvRptEvt(pEvtBuf, &pEvt->extAdvReportInd, pFragStart, fragLen);
+//            pFragStart += fragLen;
+//            lhciSendEvt(pEvtBuf);
+//          }
+//          else
+//          {
+//            /* Drop remaining fragments. */
+//            remDataLen = 0;
+//            result = FALSE;
+//          }
+//        } while (remDataLen > 0);
+//      }
+//      break;
+//    }
+//
+//    case LL_EXT_SCAN_ENABLE_CNF:
+//      if ((pEvtBuf = lhciAllocEvt(HCI_CMD_CMPL_EVT, HCI_LEN_CMD_CMPL + LHCI_LEN_LE_SET_EXT_SCAN_ENABLE)) != NULL)
+//      {
+//        uint8_t *pBuf = pEvtBuf;
+//        pBuf += lhciPackCmdCompleteEvt(pBuf, HCI_OPCODE_LE_SET_EXT_SCAN_ENABLE);
+//        lhciPackCmdCompleteEvtStatus(pBuf, pEvt->hdr.status);
+//        lhciSendEvt(pEvtBuf);
+//        result = TRUE;
+//      }
+//      break;
+//
+//    case LL_SCAN_TIMEOUT_IND:
+//    {
+//      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_SCAN_TIMEOUT_EVT) << LHCI_BYTE_TO_BITS(2))) &&
+//          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
+//      {
+//        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_SCAN_TIMEOUT)) != NULL)
+//        {
+//          pEvtBuf[0] = HCI_LE_SCAN_TIMEOUT_EVT;
+//          lhciSendEvt(pEvtBuf);
+//          result = TRUE;
+//        }
+//      }
+//      break;
+//    }
+//
+//    case LL_PER_ADV_SYNC_ESTD_IND:
+//    {
+//      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_ADV_SYNC_EST_EVT) << LHCI_BYTE_TO_BITS(1))) &&
+//          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
+//      {
+//        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_ADV_SYNC_EST)) != NULL)
+//        {
+//          lhciPackPerAdvSyncEstdEvt(pEvtBuf, &pEvt->perAdvSyncEstdCnf);
+//          lhciSendEvt(pEvtBuf);
+//          result = TRUE;
+//        }
+//      }
+//      break;
+//    }
+//    case LL_PER_ADV_REPORT_IND:
+//    {
+//      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_ADV_REPORT_EVT) << LHCI_BYTE_TO_BITS(1))) &&
+//          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
+//      {
+//        const uint8_t *pFragStart = pEvt->perAdvReportInd.pData;
+//        unsigned int remDataLen = pEvt->perAdvReportInd.len;
+//        uint8_t num_buffers = remDataLen/LHCI_PER_ADV_RPT_DATA_LEN_MAX + (remDataLen % LHCI_PER_ADV_RPT_DATA_LEN_MAX != 0);
+//
+//        if ((lhciCb.numAdvReport + num_buffers) > pLctrRtCfg->maxAdvReports)
+//        {
+//          LL_TRACE_WARN0("LL_PER_ADV_REPORT_IND, discarded, not enough advRport buffers available");
+//          break;
+//        }
+//
+//        do
+//        {
+//          unsigned int fragLen = WSF_MIN(remDataLen, (LHCI_PER_ADV_RPT_DATA_LEN_MAX));
+//          if ((lhciCb.numAdvReport < pLctrRtCfg->maxAdvReports) &&
+//              ((pEvtBuf = lhciAllocPerAdvRptEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_ADV_REPORT + fragLen)) != NULL))
+//          {
+//            remDataLen -= fragLen;
+//            lhciCb.numAdvReport++;
+//            if ((lhciCb.numAdvReport == pLctrRtCfg->maxAdvReports) && (remDataLen > 0))
+//            {
+//              /* Tell the host the data is truncated because remaining fragments can't be sent. */
+//              pEvt->perAdvReportInd.dataStatus = LL_RPT_DATA_INC_TRUNC;
+//              result = FALSE;
+//
+//              /* Drop remaining fragments. */
+//              remDataLen = 0;
+//              LL_TRACE_WARN0("LL_PER_ADV_REPORT_IND, truncated, not enough advRport buffers");
+//            }
+//            else
+//            {
+//              result = TRUE;
+//            }
+//
+//            lhciPackPerAdvRptEvt(pEvtBuf, &pEvt->perAdvReportInd, pFragStart, fragLen);
+//            pFragStart += fragLen;
+//            lhciSendEvt(pEvtBuf);
+//          }
+//          else
+//          {
+//            /* Drop remaining fragments. */
+//            remDataLen = 0;
+//            result = FALSE;
+//          }
+//        } while (remDataLen > 0);
+//      }
+//      break;
+//    }
+//    case LL_PER_ADV_SYNC_LOST_IND:
+//    {
+//      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_ADV_SYNC_LOST_EVT) << LHCI_BYTE_TO_BITS(1))) &&
+//          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
+//      {
+//        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_ADV_SYNC_LOST)) != NULL)
+//        {
+//          lhciPackPerAdvSyncLostEvt(pEvtBuf, &pEvt->perAdvSyncLostInd);
+//          lhciSendEvt(pEvtBuf);
+//          result = TRUE;
+//        }
+//      }
+//      break;
+//    }
+//    case LL_PER_SYNC_TRSF_RCVD_IND:
+//    {
+//      if ((lhciCb.leEvtMsk & ((uint64_t)(HCI_EVT_MASK_LE_PER_SYNC_TRSF_RCVT_EVT) << LHCI_BYTE_TO_BITS(2))) &&
+//          (lhciCb.evtMsk & ((uint64_t)(HCI_EVT_MASK_LE_META) << LHCI_BYTE_TO_BITS(7))))
+//      {
+//        if ((pEvtBuf = lhciAllocEvt(HCI_LE_META_EVT, HCI_LEN_LE_PER_SYNC_TRSF_RCVT)) != NULL)
+//        {
+//          lhciPackPerSyncTrsfRcvdEvt(pEvtBuf, &pEvt->perASyncTrsfRcvdInd);
+//          lhciSendEvt(pEvtBuf);
+//          result = TRUE;
+//        }
+//      }
+//      break;
+//    }
+//
+//    default:
+//      break;
+//  }
+//
+//  return result;
 }
