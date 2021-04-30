@@ -281,167 +281,167 @@ void lctrMstConnCleanupOp(BbOpDesc_t *pOp)
 /*************************************************************************************************/
 void lctrMstConnEndOp(BbOpDesc_t *pOp)
 {
-  /* Pre-resolve common structures for efficient access. */
-  BbBleData_t * const pBle = pOp->prot.pBle;
-  BbBleMstConnEvent_t * const pConn = &pBle->op.mstConn;
-  lctrConnCtx_t * const pCtx = pOp->pCtx;
-  /* Process event completion */
-
-#if (LL_ENABLE_TESTER == TRUE)
-  pBle->chan.txPower = LCTR_GET_TXPOWER(pCtx, pCtx->bleData.chan.txPhy, pCtx->bleData.chan.initTxPhyOptions);
-#endif
-  if (!pCtx->connEst && (lctrMstConnIsr.rxFromSlave || (lctrMstConnIsr.consCrcFailed > 0)))
-  {
-    lctrStoreConnTimeoutTerminateReason(pCtx);
-    WsfTimerStartMs(&pCtx->tmrSupTimeout, pCtx->supTimeoutMs);
-
-    pCtx->connEst = TRUE;
-  }
-  else if (lctrMstConnIsr.rxFromSlave)
-  {
-    /* Reset supervision timer. */
-    WsfTimerStartMs(&pCtx->tmrSupTimeout, pCtx->supTimeoutMs);
-  }
-
-  pCtx->rssi = pConn->rssi;
-
-  if ((pCtx->monitoringState == LCTR_PC_MONITOR_ENABLED) &&
-      (pCtx->lastRxStatus == BB_STATUS_SUCCESS))
-  {
-    if (lctrPcActTbl[pCtx->powerMonitorScheme])
-    {
-      lctrPcActTbl[pCtx->powerMonitorScheme](pCtx);
-    }
-  }
-
-  if (pCtx->checkCisTerm)
-  {
-    (pCtx->checkCisTerm)(LCTR_GET_CONN_HANDLE(pCtx));
-  }
-
-  /* Terminate connection */
-  if (lctrCheckForLinkTerm(pCtx))
-  {
-    lctrSendConnMsg(pCtx, LCTR_CONN_TERMINATED);
-    WsfTimerStop(&pCtx->tmrSupTimeout);
-    return;
-  }
-
-  if (pCtx->data.mst.sendConnUpdInd)
-  {
-    uint8_t *pPdu;
-
-    if ((pPdu = lctrTxCtrlPduAlloc(LL_CONN_UPD_IND_PDU_LEN)) != NULL)
-    {
-      pCtx->data.mst.sendConnUpdInd = FALSE;
-
-      uint16_t ceOffset;
-#if (LL_ENABLE_TESTER)
-      if (llTesterCb.eventCounterOverride == TRUE)
-      {
-        ceOffset = llTesterCb.eventCounterOffset + 1;          /* +1 for next CE */
-      }
-      else
-#endif
-      {
-        ceOffset = LL_MIN_INSTANT + 1 +          /* +1 for next CE */
-                   pCtx->maxLatency;             /* ensure slave will listen this packet */
-
-        /* TODO: accommodate pCtx->connParam.offset[]. */
-      }
-      pCtx->connUpd.instant = pCtx->eventCounter + ceOffset;
-
-      /* Use smallest txWindowOffset (i.e. 0) to minimize data loss. */
-      uint32_t txWinOffsetUsec = SchRmGetOffsetUsec(0, LCTR_GET_CONN_HANDLE(pCtx), pOp->dueUsec);
-      pCtx->connUpd.txWinOffset = LCTR_US_TO_CONN_IND(txWinOffsetUsec);
-
-      lctrPackConnUpdInd(pPdu, &pCtx->connUpd);
-      lctrTxCtrlPduQueue(pCtx, pPdu);
-    }
-    /* else retry at next lctrMstConnEndOp() event. */
-  }
-
-  if (pCtx->sendPerSync)
-  {
-    pCtx->sendPerSync = FALSE;
-    if (pCtx->perSyncSrc == LCTR_SYNC_SRC_SCAN)
-    {
-      if (lctrSendPerSyncFromScanFn)
-      {
-        lctrSendPerSyncFromScanFn(pCtx);
-      }
-    }
-    else  /* (pCtx->perSyncSrc == LCTR_SYNC_SRC_BCST) */
-    {
-      if (lctrSendPerSyncFromBcstFn)
-      {
-        lctrSendPerSyncFromBcstFn(pCtx);
-      }
-    }
-  }
-
-  /*** Update for next operation ***/
-
-  uint32_t anchorPointUsec       = pOp->dueUsec;
-  uint16_t numIntervals          = 0;
-
-  if (pBle->chan.tifsTxPhyOptions != BB_PHY_OPTIONS_DEFAULT)
-  {
-    /* Set PHY options to host defined behavior. */
-    pBle->chan.initTxPhyOptions = pBle->chan.tifsTxPhyOptions;
-  }
-  else
-  {
-    /* Set PHY options to RX PHY Options*/
-    pBle->chan.initTxPhyOptions = pConn->rxPhyOptions;
-  }
-
-  if (pBle->chan.txPhy == BB_PHY_BLE_CODED)
-  {
-    pBle->chan.txPower = LCTR_GET_TXPOWER(pCtx, pBle->chan.txPhy, pBle->chan.initTxPhyOptions);
-  }
-
-  while (TRUE)
-  {
-    numIntervals += 1;
-    pCtx->eventCounter += 1;
-
-    uint32_t connInterUsec = LCTR_CONN_IND_US(numIntervals * pCtx->connInterval);
-#if (LL_ENABLE_TESTER)
-    if (llTesterCb.connIntervalUs)
-    {
-      connInterUsec = (numIntervals * llTesterCb.connIntervalUs);
-    }
-#endif
-
-    /* Advance to next interval. */
-    pOp->dueUsec = anchorPointUsec + connInterUsec;
-
-    if ((pCtx->llcpActiveProc == LCTR_PROC_CONN_UPD) &&
-        (pCtx->eventCounter == pCtx->connUpd.instant))
-    {
-      lctrMstConnUpdateOp(pCtx);
-    }
-    else if ((pCtx->llcpActiveProc == LCTR_PROC_CMN_CH_MAP_UPD) &&
-             (pCtx->eventCounter == pCtx->chanMapUpd.instant))
-    {
-      lctrMstChanMapUpdateOp(pCtx);
-    }
-    else if ((pCtx->llcpActiveProc == LCTR_PROC_PHY_UPD) &&
-             (pCtx->eventCounter == pCtx->phyUpd.instant))
-    {
-      lctrMstPhyUpdateOp(pCtx);
-    }
-
-    pBle->chan.chanIdx = lctrChSelHdlr[pCtx->usedChSel](pCtx, 0);
-
-    if (SchInsertAtDueTime(pOp, lctrConnResolveConflict))
-    {
-      break;
-    }
-
-    LL_TRACE_WARN2("!!! CE schedule conflict handle=%u, eventCounter=%u", LCTR_GET_CONN_HANDLE(pCtx), pCtx->eventCounter);
-  }
+//  /* Pre-resolve common structures for efficient access. */
+//  BbBleData_t * const pBle = pOp->prot.pBle;
+//  BbBleMstConnEvent_t * const pConn = &pBle->op.mstConn;
+//  lctrConnCtx_t * const pCtx = pOp->pCtx;
+//  /* Process event completion */
+//
+//#if (LL_ENABLE_TESTER == TRUE)
+//  pBle->chan.txPower = LCTR_GET_TXPOWER(pCtx, pCtx->bleData.chan.txPhy, pCtx->bleData.chan.initTxPhyOptions);
+//#endif
+//  if (!pCtx->connEst && (lctrMstConnIsr.rxFromSlave || (lctrMstConnIsr.consCrcFailed > 0)))
+//  {
+//    lctrStoreConnTimeoutTerminateReason(pCtx);
+//    WsfTimerStartMs(&pCtx->tmrSupTimeout, pCtx->supTimeoutMs);
+//
+//    pCtx->connEst = TRUE;
+//  }
+//  else if (lctrMstConnIsr.rxFromSlave)
+//  {
+//    /* Reset supervision timer. */
+//    WsfTimerStartMs(&pCtx->tmrSupTimeout, pCtx->supTimeoutMs);
+//  }
+//
+//  pCtx->rssi = pConn->rssi;
+//
+//  if ((pCtx->monitoringState == LCTR_PC_MONITOR_ENABLED) &&
+//      (pCtx->lastRxStatus == BB_STATUS_SUCCESS))
+//  {
+//    if (lctrPcActTbl[pCtx->powerMonitorScheme])
+//    {
+//      lctrPcActTbl[pCtx->powerMonitorScheme](pCtx);
+//    }
+//  }
+//
+//  if (pCtx->checkCisTerm)
+//  {
+//    (pCtx->checkCisTerm)(LCTR_GET_CONN_HANDLE(pCtx));
+//  }
+//
+//  /* Terminate connection */
+//  if (lctrCheckForLinkTerm(pCtx))
+//  {
+//    lctrSendConnMsg(pCtx, LCTR_CONN_TERMINATED);
+//    WsfTimerStop(&pCtx->tmrSupTimeout);
+//    return;
+//  }
+//
+//  if (pCtx->data.mst.sendConnUpdInd)
+//  {
+//    uint8_t *pPdu;
+//
+//    if ((pPdu = lctrTxCtrlPduAlloc(LL_CONN_UPD_IND_PDU_LEN)) != NULL)
+//    {
+//      pCtx->data.mst.sendConnUpdInd = FALSE;
+//
+//      uint16_t ceOffset;
+//#if (LL_ENABLE_TESTER)
+//      if (llTesterCb.eventCounterOverride == TRUE)
+//      {
+//        ceOffset = llTesterCb.eventCounterOffset + 1;          /* +1 for next CE */
+//      }
+//      else
+//#endif
+//      {
+//        ceOffset = LL_MIN_INSTANT + 1 +          /* +1 for next CE */
+//                   pCtx->maxLatency;             /* ensure slave will listen this packet */
+//
+//        /* TODO: accommodate pCtx->connParam.offset[]. */
+//      }
+//      pCtx->connUpd.instant = pCtx->eventCounter + ceOffset;
+//
+//      /* Use smallest txWindowOffset (i.e. 0) to minimize data loss. */
+//      uint32_t txWinOffsetUsec = SchRmGetOffsetUsec(0, LCTR_GET_CONN_HANDLE(pCtx), pOp->dueUsec);
+//      pCtx->connUpd.txWinOffset = LCTR_US_TO_CONN_IND(txWinOffsetUsec);
+//
+//      lctrPackConnUpdInd(pPdu, &pCtx->connUpd);
+//      lctrTxCtrlPduQueue(pCtx, pPdu);
+//    }
+//    /* else retry at next lctrMstConnEndOp() event. */
+//  }
+//
+//  if (pCtx->sendPerSync)
+//  {
+//    pCtx->sendPerSync = FALSE;
+//    if (pCtx->perSyncSrc == LCTR_SYNC_SRC_SCAN)
+//    {
+//      if (lctrSendPerSyncFromScanFn)
+//      {
+//        lctrSendPerSyncFromScanFn(pCtx);
+//      }
+//    }
+//    else  /* (pCtx->perSyncSrc == LCTR_SYNC_SRC_BCST) */
+//    {
+//      if (lctrSendPerSyncFromBcstFn)
+//      {
+//        lctrSendPerSyncFromBcstFn(pCtx);
+//      }
+//    }
+//  }
+//
+//  /*** Update for next operation ***/
+//
+//  uint32_t anchorPointUsec       = pOp->dueUsec;
+//  uint16_t numIntervals          = 0;
+//
+//  if (pBle->chan.tifsTxPhyOptions != BB_PHY_OPTIONS_DEFAULT)
+//  {
+//    /* Set PHY options to host defined behavior. */
+//    pBle->chan.initTxPhyOptions = pBle->chan.tifsTxPhyOptions;
+//  }
+//  else
+//  {
+//    /* Set PHY options to RX PHY Options*/
+//    pBle->chan.initTxPhyOptions = pConn->rxPhyOptions;
+//  }
+//
+//  if (pBle->chan.txPhy == BB_PHY_BLE_CODED)
+//  {
+//    pBle->chan.txPower = LCTR_GET_TXPOWER(pCtx, pBle->chan.txPhy, pBle->chan.initTxPhyOptions);
+//  }
+//
+//  while (TRUE)
+//  {
+//    numIntervals += 1;
+//    pCtx->eventCounter += 1;
+//
+//    uint32_t connInterUsec = LCTR_CONN_IND_US(numIntervals * pCtx->connInterval);
+//#if (LL_ENABLE_TESTER)
+//    if (llTesterCb.connIntervalUs)
+//    {
+//      connInterUsec = (numIntervals * llTesterCb.connIntervalUs);
+//    }
+//#endif
+//
+//    /* Advance to next interval. */
+//    pOp->dueUsec = anchorPointUsec + connInterUsec;
+//
+//    if ((pCtx->llcpActiveProc == LCTR_PROC_CONN_UPD) &&
+//        (pCtx->eventCounter == pCtx->connUpd.instant))
+//    {
+//      lctrMstConnUpdateOp(pCtx);
+//    }
+//    else if ((pCtx->llcpActiveProc == LCTR_PROC_CMN_CH_MAP_UPD) &&
+//             (pCtx->eventCounter == pCtx->chanMapUpd.instant))
+//    {
+//      lctrMstChanMapUpdateOp(pCtx);
+//    }
+//    else if ((pCtx->llcpActiveProc == LCTR_PROC_PHY_UPD) &&
+//             (pCtx->eventCounter == pCtx->phyUpd.instant))
+//    {
+//      lctrMstPhyUpdateOp(pCtx);
+//    }
+//
+//    pBle->chan.chanIdx = lctrChSelHdlr[pCtx->usedChSel](pCtx, 0);
+//
+//    if (SchInsertAtDueTime(pOp, lctrConnResolveConflict))
+//    {
+//      break;
+//    }
+//
+//    LL_TRACE_WARN2("!!! CE schedule conflict handle=%u, eventCounter=%u", LCTR_GET_CONN_HANDLE(pCtx), pCtx->eventCounter);
+//  }
 }
 
 /*************************************************************************************************/

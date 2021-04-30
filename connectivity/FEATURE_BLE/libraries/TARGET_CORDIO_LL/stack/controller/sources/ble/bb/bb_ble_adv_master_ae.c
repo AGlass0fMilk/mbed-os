@@ -150,351 +150,351 @@ static void bbMstAuxScanTxCompCback(uint8_t status)
 /*************************************************************************************************/
 static void bbMstAuxScanRxCompCback(uint8_t status, int8_t rssi, uint32_t crc, uint32_t timestamp, uint8_t rxPhyOptions)
 {
-  BB_ISR_START();
-
-  WSF_ASSERT(BbGetCurrentBod());
-
-  BbOpDesc_t * const pCur = BbGetCurrentBod();
-  BbBleData_t * const pBle = pCur->prot.pBle;
-  BbBleMstAuxAdvEvent_t * const pAuxScan = &pBle->op.mstAuxAdv;
-
-  bool_t bodComplete = FALSE;
-  bool_t bodCont = FALSE;
-
-#if (BB_SNIFFER_ENABLED == TRUE)
-  /* Save evtState to be used later in packet forwarding. */
-  uint8_t evtState = bbBleCb.evtState;
-  BbBleSnifferPkt_t * pPkt = NULL;
-  if (bbSnifferCtx.enabled)
-  {
-    pPkt = bbSnifferCtx.snifferGetPktFn();
-  }
-#endif
-
-  switch (bbBleCb.evtState)
-  {
-    case BB_EVT_STATE_RX_ADV_IND:
-    {
-      switch (status)
-      {
-        case BB_STATUS_SUCCESS:
-        {
-          WSF_ASSERT(pAuxScan->rxAuxAdvCback);
-
-          pAuxScan->auxAdvRssi = rssi;
-          pAuxScan->auxAdvCrc = crc;
-          pAuxScan->auxStartTsUsec = timestamp;
-          pAuxScan->auxRxPhyOptions = rxPhyOptions;
-
-#if (BB_SNIFFER_ENABLED == TRUE)
-          /* Pack the rx buffer before it is overwritten. */
-          if (pPkt)
-          {
-            memcpy(pPkt->pktType.advPkt.hdr, bbAuxAdvBuf, LL_ADV_HDR_LEN);
-          }
-#endif
-
-          uint32_t auxOffsetUsec;
-          if (pAuxScan->rxAuxAdvCback(pCur, bbAuxAdvBuf))
-          {
-            if (pAuxScan->pTxAuxReqBuf)
-            {
-              /* Tx response PDU. */
-
-              bbBleCb.evtState = BB_EVT_STATE_TX_SCAN_OR_CONN_INIT;
-
-              BB_ISR_MARK(bbAuxScanStats.txSetupUsec);
-
-              PalBbBleTxBufDesc_t desc = {.pBuf = pAuxScan->pTxAuxReqBuf, .len = pAuxScan->txAuxReqLen};
-
-              bbBleSetTifs();
-              PalBbBleTxTifsData(&desc, 1);
-            }
-          }
-          else if ((pAuxScan->rxAuxChainCback) &&
-                   ((auxOffsetUsec = pAuxScan->rxAuxChainCback(pCur, bbAuxAdvBuf)) > 0))
-          {
-            /* Rx chain indication PDU. */
-
-            bbBleCb.evtState = BB_EVT_STATE_RX_CHAIN_IND;
-
-            /* Cancel Tifs operation is needed for passive scan and non connectable/scannable adv with chain. */
-            PalBbBleCancelTifs();
-
-            PalBbBleSetChannelParam(&pBle->chan);
-            bbBleCb.bbParam.dueUsec = BbAdjustTime(timestamp + auxOffsetUsec);
-            PalBbBleSetDataParams(&bbBleCb.bbParam);
-
-            BB_ISR_MARK(bbAuxScanStats.rxSetupUsec);
-
-            bbBleClrIfs();        /* CHAIN_IND does not use TIFS. */
-            PalBbBleRxData(bbAuxAdvBuf, sizeof(bbAuxAdvBuf));
-
-            WSF_ASSERT(pAuxScan->rxAuxChainPostCback);
-            if (pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf) == FALSE)
-            {
-              bodCont = TRUE;
-            }
-          }
-          else
-          {
-            if (pAuxScan->rxAuxChainPostCback)
-            {
-              pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf);
-            }
-            bodCont = TRUE;
-          }
-          break;
-        }
-
-        case BB_STATUS_RX_TIMEOUT:
-        case BB_STATUS_CRC_FAILED:
-          bodCont = TRUE;
-          break;
-
-        case BB_STATUS_FAILED:
-        default:
-          bodComplete = TRUE;
-          break;
-      }
-
-      /* Update statistics. */
-      switch (status)
-      {
-        case BB_STATUS_SUCCESS:
-          BB_INC_STAT(bbAuxScanStats.rxAdv);
-          break;
-        case BB_STATUS_RX_TIMEOUT:
-          BB_INC_STAT(bbAuxScanStats.rxAdvTimeout);
-          break;
-        case BB_STATUS_CRC_FAILED:
-          BB_INC_STAT(bbAuxScanStats.rxAdvCrc);
-          break;
-        case BB_STATUS_FAILED:
-        default:
-          BB_INC_STAT(bbAuxScanStats.errScan);
-          break;
-      }
-
-      break;
-    }
-
-    case BB_EVT_STATE_RX_SCAN_OR_CONN_RSP:
-    {
-      bbBleCb.evtState = BB_EVT_STATE_RX_CHAIN_IND;
-
-      WSF_ASSERT(pAuxScan->rxAuxRspCback);
-
-      switch (status)
-      {
-        case BB_STATUS_SUCCESS:
-          pAuxScan->auxAdvRssi = rssi;
-          pAuxScan->auxAdvCrc = crc;
-          pAuxScan->auxStartTsUsec = timestamp;
-          pAuxScan->auxRxPhyOptions = rxPhyOptions;
-
-#if (BB_SNIFFER_ENABLED == TRUE)
-          /* Pack the rx buffer before it is overwritten. */
-          if (pPkt)
-          {
-            memcpy(pPkt->pktType.advPkt.hdr, bbAuxAdvBuf, LL_ADV_HDR_LEN);
-          }
-#endif
-
-          uint32_t auxOffsetUsec;
-
-          pAuxScan->rxAuxRspCback(pCur, bbAuxAdvBuf);
-          if ((pAuxScan->rxAuxChainCback) &&
-              ((auxOffsetUsec = pAuxScan->rxAuxChainCback(pCur, bbAuxAdvBuf)) > 0))
-          {
-            PalBbBleSetChannelParam(&pBle->chan);
-            bbBleCb.bbParam.dueUsec = BbAdjustTime(timestamp + auxOffsetUsec);
-            PalBbBleSetDataParams(&bbBleCb.bbParam);
-
-            BB_ISR_MARK(bbAuxScanStats.rxSetupUsec);
-
-            bbBleClrIfs();        /* CHAIN_IND does not use TIFS. */
-            PalBbBleRxData(bbAuxAdvBuf, sizeof(bbAuxAdvBuf));
-
-            WSF_ASSERT(pAuxScan->rxAuxChainPostCback);
-            if (pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf) == FALSE)
-            {
-              bodCont = TRUE;
-            }
-          }
-          else
-          {
-            if (pAuxScan->rxAuxChainPostCback)
-            {
-              /* Only apply to scan response. */
-              pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf);
-            }
-            bodCont = TRUE;
-          }
-          break;
-
-        case BB_STATUS_RX_TIMEOUT:
-        case BB_STATUS_CRC_FAILED:
-          pAuxScan->rxAuxRspCback(pCur, NULL);
-          bodCont = TRUE;
-          break;
-
-        case BB_STATUS_FAILED:
-        default:
-          bodComplete = TRUE;
-          break;
-      }
-
-      /* Update statistics. */
-      switch (status)
-      {
-        case BB_STATUS_SUCCESS:
-          BB_INC_STAT(bbAuxScanStats.rxRsp);
-          break;
-        case BB_STATUS_RX_TIMEOUT:
-          BB_INC_STAT(bbAuxScanStats.rxRspTimeout);
-          break;
-        case BB_STATUS_CRC_FAILED:
-          BB_INC_STAT(bbAuxScanStats.rxRspCrc);
-          break;
-        case BB_STATUS_FAILED:
-        default:
-          BB_INC_STAT(bbAuxScanStats.errScan);
-          break;
-      }
-
-      break;
-    }
-
-    case BB_EVT_STATE_RX_CHAIN_IND:
-    {
-      /* Same state. */
-      /* bbBleCb.evtState = BB_EVT_STATE_RX_CHAIN_IND; */
-
-      WSF_ASSERT(pAuxScan->rxAuxChainCback);
-
-      switch (status)
-      {
-        case BB_STATUS_SUCCESS:
-        {
-#if (BB_SNIFFER_ENABLED == TRUE)
-          /* Pack the rx buffer before it is overwritten. */
-          if (pPkt)
-          {
-            memcpy(pPkt->pktType.advPkt.hdr, bbAuxAdvBuf, LL_ADV_HDR_LEN);
-          }
-#endif
-
-          uint32_t auxOffsetUsec;
-          if ((auxOffsetUsec = pAuxScan->rxAuxChainCback(pCur, bbAuxAdvBuf)) > 0)
-          {
-            PalBbBleSetChannelParam(&pBle->chan);
-            bbBleCb.bbParam.dueUsec = BbAdjustTime(timestamp + auxOffsetUsec);
-            PalBbBleSetDataParams(&bbBleCb.bbParam);
-
-            BB_ISR_MARK(bbAuxScanStats.rxSetupUsec);
-
-            bbBleClrIfs();        /* CHAIN_IND does not use TIFS. */
-            PalBbBleRxData(bbAuxAdvBuf, sizeof(bbAuxAdvBuf));
-
-            WSF_ASSERT(pAuxScan->rxAuxChainPostCback);
-            if (pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf) == FALSE)
-            {
-              bodCont = TRUE;
-            }
-          }
-          else
-          {
-            if (pAuxScan->rxAuxChainPostCback)
-            {
-              pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf);
-            }
-            bodCont = TRUE;
-          }
-          break;
-        }
-        case BB_STATUS_RX_TIMEOUT:
-        case BB_STATUS_CRC_FAILED:
-          pAuxScan->rxAuxChainCback(pCur, NULL);
-          if (pAuxScan->rxAuxChainPostCback)
-          {
-            pAuxScan->rxAuxChainPostCback(pCur, NULL);
-          }
-          bodCont = TRUE;
-          break;
-
-        case BB_STATUS_FAILED:
-        default:
-          pAuxScan->rxAuxChainCback(pCur, NULL);
-          if (pAuxScan->rxAuxChainPostCback)
-          {
-            pAuxScan->rxAuxChainPostCback(pCur, NULL);
-          }
-          bodComplete = TRUE;
-          break;
-      }
-
-      /* Update statistics. */
-      switch (status)
-      {
-        case BB_STATUS_SUCCESS:
-          BB_INC_STAT(bbAuxScanStats.rxChain);
-          break;
-        case BB_STATUS_RX_TIMEOUT:
-          BB_INC_STAT(bbAuxScanStats.rxChainTimeout);
-          break;
-        case BB_STATUS_CRC_FAILED:
-          BB_INC_STAT(bbAuxScanStats.rxChainCrc);
-          break;
-        case BB_STATUS_FAILED:
-        default:
-          BB_INC_STAT(bbAuxScanStats.errScan);
-          break;
-      }
-
-      break;
-    }
-
-    default:        /* invalid state */
-      WSF_ASSERT(FALSE);
-      break;
-  }
-
-  if (bodCont)
-  {
-    /* Cancel TIFS timer if active. */
-    switch (status)
-    {
-      case BB_STATUS_SUCCESS:
-      case BB_STATUS_CRC_FAILED:
-        PalBbBleCancelTifs();
-        break;
-      default:
-        break;
-    }
-
-    bodComplete = TRUE;
-  }
-
-  if (bodComplete)
-  {
-    BbTerminateBod();
-  }
-
-#if (BB_SNIFFER_ENABLED == TRUE)
-  if (pPkt)
-  {
-    pPkt->pktType.meta.type = BB_SNIFF_PKT_TYPE_RX;
-    pPkt->pktType.meta.rssi = rssi;
-    pPkt->pktType.meta.timeStamp = timestamp;
-    pPkt->pktType.meta.status = status;
-    pPkt->pktType.meta.state = evtState;
-
-    bbBleSnifferMstAuxScanPktHandler(pCur, pPkt);
-  }
-#endif
-
-  BB_ISR_MARK(bbAuxScanStats.rxIsrUsec);
+//  BB_ISR_START();
+//
+//  WSF_ASSERT(BbGetCurrentBod());
+//
+//  BbOpDesc_t * const pCur = BbGetCurrentBod();
+//  BbBleData_t * const pBle = pCur->prot.pBle;
+//  BbBleMstAuxAdvEvent_t * const pAuxScan = &pBle->op.mstAuxAdv;
+//
+//  bool_t bodComplete = FALSE;
+//  bool_t bodCont = FALSE;
+//
+//#if (BB_SNIFFER_ENABLED == TRUE)
+//  /* Save evtState to be used later in packet forwarding. */
+//  uint8_t evtState = bbBleCb.evtState;
+//  BbBleSnifferPkt_t * pPkt = NULL;
+//  if (bbSnifferCtx.enabled)
+//  {
+//    pPkt = bbSnifferCtx.snifferGetPktFn();
+//  }
+//#endif
+//
+//  switch (bbBleCb.evtState)
+//  {
+//    case BB_EVT_STATE_RX_ADV_IND:
+//    {
+//      switch (status)
+//      {
+//        case BB_STATUS_SUCCESS:
+//        {
+//          WSF_ASSERT(pAuxScan->rxAuxAdvCback);
+//
+//          pAuxScan->auxAdvRssi = rssi;
+//          pAuxScan->auxAdvCrc = crc;
+//          pAuxScan->auxStartTsUsec = timestamp;
+//          pAuxScan->auxRxPhyOptions = rxPhyOptions;
+//
+//#if (BB_SNIFFER_ENABLED == TRUE)
+//          /* Pack the rx buffer before it is overwritten. */
+//          if (pPkt)
+//          {
+//            memcpy(pPkt->pktType.advPkt.hdr, bbAuxAdvBuf, LL_ADV_HDR_LEN);
+//          }
+//#endif
+//
+//          uint32_t auxOffsetUsec;
+//          if (pAuxScan->rxAuxAdvCback(pCur, bbAuxAdvBuf))
+//          {
+//            if (pAuxScan->pTxAuxReqBuf)
+//            {
+//              /* Tx response PDU. */
+//
+//              bbBleCb.evtState = BB_EVT_STATE_TX_SCAN_OR_CONN_INIT;
+//
+//              BB_ISR_MARK(bbAuxScanStats.txSetupUsec);
+//
+//              PalBbBleTxBufDesc_t desc = {.pBuf = pAuxScan->pTxAuxReqBuf, .len = pAuxScan->txAuxReqLen};
+//
+//              bbBleSetTifs();
+//              PalBbBleTxTifsData(&desc, 1);
+//            }
+//          }
+//          else if ((pAuxScan->rxAuxChainCback) &&
+//                   ((auxOffsetUsec = pAuxScan->rxAuxChainCback(pCur, bbAuxAdvBuf)) > 0))
+//          {
+//            /* Rx chain indication PDU. */
+//
+//            bbBleCb.evtState = BB_EVT_STATE_RX_CHAIN_IND;
+//
+//            /* Cancel Tifs operation is needed for passive scan and non connectable/scannable adv with chain. */
+//            PalBbBleCancelTifs();
+//
+//            PalBbBleSetChannelParam(&pBle->chan);
+//            bbBleCb.bbParam.dueUsec = BbAdjustTime(timestamp + auxOffsetUsec);
+//            PalBbBleSetDataParams(&bbBleCb.bbParam);
+//
+//            BB_ISR_MARK(bbAuxScanStats.rxSetupUsec);
+//
+//            bbBleClrIfs();        /* CHAIN_IND does not use TIFS. */
+//            PalBbBleRxData(bbAuxAdvBuf, sizeof(bbAuxAdvBuf));
+//
+//            WSF_ASSERT(pAuxScan->rxAuxChainPostCback);
+//            if (pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf) == FALSE)
+//            {
+//              bodCont = TRUE;
+//            }
+//          }
+//          else
+//          {
+//            if (pAuxScan->rxAuxChainPostCback)
+//            {
+//              pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf);
+//            }
+//            bodCont = TRUE;
+//          }
+//          break;
+//        }
+//
+//        case BB_STATUS_RX_TIMEOUT:
+//        case BB_STATUS_CRC_FAILED:
+//          bodCont = TRUE;
+//          break;
+//
+//        case BB_STATUS_FAILED:
+//        default:
+//          bodComplete = TRUE;
+//          break;
+//      }
+//
+//      /* Update statistics. */
+//      switch (status)
+//      {
+//        case BB_STATUS_SUCCESS:
+//          BB_INC_STAT(bbAuxScanStats.rxAdv);
+//          break;
+//        case BB_STATUS_RX_TIMEOUT:
+//          BB_INC_STAT(bbAuxScanStats.rxAdvTimeout);
+//          break;
+//        case BB_STATUS_CRC_FAILED:
+//          BB_INC_STAT(bbAuxScanStats.rxAdvCrc);
+//          break;
+//        case BB_STATUS_FAILED:
+//        default:
+//          BB_INC_STAT(bbAuxScanStats.errScan);
+//          break;
+//      }
+//
+//      break;
+//    }
+//
+//    case BB_EVT_STATE_RX_SCAN_OR_CONN_RSP:
+//    {
+//      bbBleCb.evtState = BB_EVT_STATE_RX_CHAIN_IND;
+//
+//      WSF_ASSERT(pAuxScan->rxAuxRspCback);
+//
+//      switch (status)
+//      {
+//        case BB_STATUS_SUCCESS:
+//          pAuxScan->auxAdvRssi = rssi;
+//          pAuxScan->auxAdvCrc = crc;
+//          pAuxScan->auxStartTsUsec = timestamp;
+//          pAuxScan->auxRxPhyOptions = rxPhyOptions;
+//
+//#if (BB_SNIFFER_ENABLED == TRUE)
+//          /* Pack the rx buffer before it is overwritten. */
+//          if (pPkt)
+//          {
+//            memcpy(pPkt->pktType.advPkt.hdr, bbAuxAdvBuf, LL_ADV_HDR_LEN);
+//          }
+//#endif
+//
+//          uint32_t auxOffsetUsec;
+//
+//          pAuxScan->rxAuxRspCback(pCur, bbAuxAdvBuf);
+//          if ((pAuxScan->rxAuxChainCback) &&
+//              ((auxOffsetUsec = pAuxScan->rxAuxChainCback(pCur, bbAuxAdvBuf)) > 0))
+//          {
+//            PalBbBleSetChannelParam(&pBle->chan);
+//            bbBleCb.bbParam.dueUsec = BbAdjustTime(timestamp + auxOffsetUsec);
+//            PalBbBleSetDataParams(&bbBleCb.bbParam);
+//
+//            BB_ISR_MARK(bbAuxScanStats.rxSetupUsec);
+//
+//            bbBleClrIfs();        /* CHAIN_IND does not use TIFS. */
+//            PalBbBleRxData(bbAuxAdvBuf, sizeof(bbAuxAdvBuf));
+//
+//            WSF_ASSERT(pAuxScan->rxAuxChainPostCback);
+//            if (pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf) == FALSE)
+//            {
+//              bodCont = TRUE;
+//            }
+//          }
+//          else
+//          {
+//            if (pAuxScan->rxAuxChainPostCback)
+//            {
+//              /* Only apply to scan response. */
+//              pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf);
+//            }
+//            bodCont = TRUE;
+//          }
+//          break;
+//
+//        case BB_STATUS_RX_TIMEOUT:
+//        case BB_STATUS_CRC_FAILED:
+//          pAuxScan->rxAuxRspCback(pCur, NULL);
+//          bodCont = TRUE;
+//          break;
+//
+//        case BB_STATUS_FAILED:
+//        default:
+//          bodComplete = TRUE;
+//          break;
+//      }
+//
+//      /* Update statistics. */
+//      switch (status)
+//      {
+//        case BB_STATUS_SUCCESS:
+//          BB_INC_STAT(bbAuxScanStats.rxRsp);
+//          break;
+//        case BB_STATUS_RX_TIMEOUT:
+//          BB_INC_STAT(bbAuxScanStats.rxRspTimeout);
+//          break;
+//        case BB_STATUS_CRC_FAILED:
+//          BB_INC_STAT(bbAuxScanStats.rxRspCrc);
+//          break;
+//        case BB_STATUS_FAILED:
+//        default:
+//          BB_INC_STAT(bbAuxScanStats.errScan);
+//          break;
+//      }
+//
+//      break;
+//    }
+//
+//    case BB_EVT_STATE_RX_CHAIN_IND:
+//    {
+//      /* Same state. */
+//      /* bbBleCb.evtState = BB_EVT_STATE_RX_CHAIN_IND; */
+//
+//      WSF_ASSERT(pAuxScan->rxAuxChainCback);
+//
+//      switch (status)
+//      {
+//        case BB_STATUS_SUCCESS:
+//        {
+//#if (BB_SNIFFER_ENABLED == TRUE)
+//          /* Pack the rx buffer before it is overwritten. */
+//          if (pPkt)
+//          {
+//            memcpy(pPkt->pktType.advPkt.hdr, bbAuxAdvBuf, LL_ADV_HDR_LEN);
+//          }
+//#endif
+//
+//          uint32_t auxOffsetUsec;
+//          if ((auxOffsetUsec = pAuxScan->rxAuxChainCback(pCur, bbAuxAdvBuf)) > 0)
+//          {
+//            PalBbBleSetChannelParam(&pBle->chan);
+//            bbBleCb.bbParam.dueUsec = BbAdjustTime(timestamp + auxOffsetUsec);
+//            PalBbBleSetDataParams(&bbBleCb.bbParam);
+//
+//            BB_ISR_MARK(bbAuxScanStats.rxSetupUsec);
+//
+//            bbBleClrIfs();        /* CHAIN_IND does not use TIFS. */
+//            PalBbBleRxData(bbAuxAdvBuf, sizeof(bbAuxAdvBuf));
+//
+//            WSF_ASSERT(pAuxScan->rxAuxChainPostCback);
+//            if (pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf) == FALSE)
+//            {
+//              bodCont = TRUE;
+//            }
+//          }
+//          else
+//          {
+//            if (pAuxScan->rxAuxChainPostCback)
+//            {
+//              pAuxScan->rxAuxChainPostCback(pCur, bbAuxAdvBuf);
+//            }
+//            bodCont = TRUE;
+//          }
+//          break;
+//        }
+//        case BB_STATUS_RX_TIMEOUT:
+//        case BB_STATUS_CRC_FAILED:
+//          pAuxScan->rxAuxChainCback(pCur, NULL);
+//          if (pAuxScan->rxAuxChainPostCback)
+//          {
+//            pAuxScan->rxAuxChainPostCback(pCur, NULL);
+//          }
+//          bodCont = TRUE;
+//          break;
+//
+//        case BB_STATUS_FAILED:
+//        default:
+//          pAuxScan->rxAuxChainCback(pCur, NULL);
+//          if (pAuxScan->rxAuxChainPostCback)
+//          {
+//            pAuxScan->rxAuxChainPostCback(pCur, NULL);
+//          }
+//          bodComplete = TRUE;
+//          break;
+//      }
+//
+//      /* Update statistics. */
+//      switch (status)
+//      {
+//        case BB_STATUS_SUCCESS:
+//          BB_INC_STAT(bbAuxScanStats.rxChain);
+//          break;
+//        case BB_STATUS_RX_TIMEOUT:
+//          BB_INC_STAT(bbAuxScanStats.rxChainTimeout);
+//          break;
+//        case BB_STATUS_CRC_FAILED:
+//          BB_INC_STAT(bbAuxScanStats.rxChainCrc);
+//          break;
+//        case BB_STATUS_FAILED:
+//        default:
+//          BB_INC_STAT(bbAuxScanStats.errScan);
+//          break;
+//      }
+//
+//      break;
+//    }
+//
+//    default:        /* invalid state */
+//      WSF_ASSERT(FALSE);
+//      break;
+//  }
+//
+//  if (bodCont)
+//  {
+//    /* Cancel TIFS timer if active. */
+//    switch (status)
+//    {
+//      case BB_STATUS_SUCCESS:
+//      case BB_STATUS_CRC_FAILED:
+//        PalBbBleCancelTifs();
+//        break;
+//      default:
+//        break;
+//    }
+//
+//    bodComplete = TRUE;
+//  }
+//
+//  if (bodComplete)
+//  {
+//    BbTerminateBod();
+//  }
+//
+//#if (BB_SNIFFER_ENABLED == TRUE)
+//  if (pPkt)
+//  {
+//    pPkt->pktType.meta.type = BB_SNIFF_PKT_TYPE_RX;
+//    pPkt->pktType.meta.rssi = rssi;
+//    pPkt->pktType.meta.timeStamp = timestamp;
+//    pPkt->pktType.meta.status = status;
+//    pPkt->pktType.meta.state = evtState;
+//
+//    bbBleSnifferMstAuxScanPktHandler(pCur, pPkt);
+//  }
+//#endif
+//
+//  BB_ISR_MARK(bbAuxScanStats.rxIsrUsec);
 
 }
 

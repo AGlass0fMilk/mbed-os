@@ -1355,141 +1355,141 @@ void lctrMstPerScanOpCommit(lctrExtScanCtx_t *pExtScanCtx, lctrAuxPtr_t *pAuxPtr
 /*************************************************************************************************/
 void lctrMstPerScanTransferOpCommit(uint16_t connHandle)
 {
-  lctrConnCtx_t *pConnCtx = LCTR_GET_CONN_CTX(connHandle);
-  BbOpDesc_t * const pConnOp = &pConnCtx->connBod;
-  uint32_t refTime;
-  uint16_t peC;       /* paEventCounter for the AUX_SYNC_IND PDU that we are attempting to receive. */
-  uint32_t startTs;   /* Anchor point of the connection event. */
-  uint16_t numInterval;
-
-  /* Pre-resolve common structures for efficient access. */
-  lctrPerScanCtx_t *pPerScanCtx = lctrPerTransferSync.pPerScanCtx;
-  BbOpDesc_t * const pOp = &pPerScanCtx->bod;
-  BbBleData_t * const pBle = &pPerScanCtx->bleData;
-
-  /* reporting can be initially disabled. */
-  if (pConnCtx->syncMode == LL_SYNC_TRSF_MODE_REP_DISABLED)
-  {
-    pPerScanCtx->repDisabled = TRUE;
-  }
-
-  pPerScanCtx->syncTimeOutMs = LCTR_PER_SYNC_TIMEOUT_TO_MS(pConnCtx->syncTimeout);
-  pPerScanCtx->skip = pConnCtx->syncSkip;
-  pPerScanCtx->sca = trsfSyncInfo.sca;
-
-  /*** BLE General Setup for Channel ***/
-
-  pPerScanCtx->chanParam.chanMask = trsfSyncInfo.chanMap;
-  pPerScanCtx->chanParam.usedChSel = LL_CH_SEL_2;
-
-  lctrPeriodicBuildRemapTable(&pPerScanCtx->chanParam);
-  pPerScanCtx->chanParam.chIdentifier = (trsfSyncInfo.accAddr >> 16) ^
-                                        (trsfSyncInfo.accAddr >> 0);
-
-  pBle->chan.accAddr = trsfSyncInfo.accAddr;
-  pBle->chan.crcInit = trsfSyncInfo.crcInit;
-  pBle->chan.txPhy = pBle->chan.rxPhy = pPerScanCtx->rxPhys;
-
-#if (LL_ENABLE_TESTER == TRUE)
-  pBle->chan.accAddrRx = llTesterCb.advAccessAddrRx ^ pBle->chan.accAddr;
-  pBle->chan.accAddrTx = llTesterCb.advAccessAddrTx ^ pBle->chan.accAddr;
-  pBle->chan.crcInitRx = llTesterCb.advCrcInitRx ^ pBle->chan.crcInit;
-  pBle->chan.crcInitTx = llTesterCb.advCrcInitTx ^ pBle->chan.crcInit;
-#endif
-
-  /* Offset from ceRef to PEa(paEventCounter). */
-  uint32_t offsetUsec = trsfSyncInfo.syncOffset * ((trsfSyncInfo.offsetUnits == LCTR_OFFS_UNITS_30_USEC) ? 30 : 300);
-  offsetUsec += (LL_SYNC_OFFS_ADJUST_USEC * trsfSyncInfo.offsetAdjust);
-
-  /* Calculate reference time: ceRef + offset. */
-  refTime = lctrConnGetAnchorPoint(pConnCtx, lctrPerTransferSync.ceRef);
-  refTime += offsetUsec;
-
-  /* refTime needs to be future from the next connection event. */
-  startTs = lctrConnGetAnchorPoint(pConnCtx, pConnCtx->eventCounter);
-  peC = trsfSyncInfo.eventCounter;
-
-  if (BbGetTargetTimeDelta(refTime, startTs + pConnOp->minDurUsec) > 0)
-  {
-    numInterval = BbGetTargetTimeDelta(refTime, startTs + pConnOp->minDurUsec) / pPerScanCtx->perInterUsec;
-    refTime -= numInterval * pPerScanCtx->perInterUsec;
-    peC -= numInterval;
-    offsetUsec = BbGetTargetTimeDelta(refTime , startTs);
-  }
-  else  /* refTime is in the past. */
-  {
-    numInterval = 1 + BbGetTargetTimeDelta(startTs + pConnOp->minDurUsec, refTime)/ pPerScanCtx->perInterUsec;
-    refTime += numInterval * pPerScanCtx->perInterUsec;
-    peC += numInterval;
-    offsetUsec = BbGetTargetTimeDelta(refTime , startTs);
-  }
-
-  pPerScanCtx->eventCounter = peC;
-  pBle->chan.chanIdx = lctrPeriodicSelectNextChannel(&pPerScanCtx->chanParam, pPerScanCtx->eventCounter);
-
-  /* Total drift D = (Da + Db) x (1 + CAa + CAb + CAc)  */
-  /* Da : Drift of the periodic advertising             */
-  /* Db : Drift of B's clock between CEs and PEb        */
-  uint16_t scaPpmA = (trsfSyncInfo.sca < LCTR_MAX_SCA) ? scaPpmTbl[trsfSyncInfo.sca] : scaPpmTbl[LCTR_MAX_SCA];
-  uint16_t scaPpmB = (lctrPerTransferSync.scaB < LCTR_MAX_SCA) ? scaPpmTbl[lctrPerTransferSync.scaB] : scaPpmTbl[LCTR_MAX_SCA];
-  uint16_t scaPpmC = BbGetClockAccuracy();
-
-  /* Da = |PEc – PEb| × PAI × (CAa + CAc) */
-  uint32_t deltaPA = ((uint16_t)(peC - lctrPerTransferSync.lastPECounter) < LCTR_MAX_INSTANT) ? (uint16_t)(peC - lctrPerTransferSync.lastPECounter) : 0;
-  deltaPA *= pPerScanCtx->perInterUsec;
-  uint32_t dA = lctrCalcWindowWideningUsec(deltaPA, (scaPpmA + scaPpmC));
-
-  /* Db = |CEt – CEs| × CI × (CAb + CAc) */
-  uint32_t deltaCE = ((uint16_t)(lctrPerTransferSync.ceRcvd - lctrPerTransferSync.syncCe) < LCTR_MAX_INSTANT) ? (uint16_t)(lctrPerTransferSync.ceRcvd - lctrPerTransferSync.syncCe) : 0;
-  deltaCE *= LCTR_CONN_IND_US(pConnCtx->connInterval);
-  uint32_t dB = lctrCalcWindowWideningUsec(deltaCE, (scaPpmB + scaPpmC));
-
-  uint32_t wwUsec = 16 + lctrCalcWindowWideningUsec((dA + dB), (1 + scaPpmA + scaPpmB + scaPpmC));
-  pPerScanCtx->rxSyncDelayUsec = pBle->op.mstPerScan.rxSyncDelayUsec = (wwUsec << 1) + ((trsfSyncInfo.offsetUnits == LCTR_OFFS_UNITS_30_USEC) ? 30 : 300);    /* rounding compensation */
-
-  LL_TRACE_WARN3("Periodic scan transfer WW=%u: Da=%u, Db=%u", wwUsec, dA, dB);
-
-  pPerScanCtx->lastAnchorPointUsec = startTs + offsetUsec;
-  pPerScanCtx->lastActiveEvent = pPerScanCtx->eventCounter;
-  pPerScanCtx->initEventCounter = pPerScanCtx->eventCounter;
-
-  pOp->dueUsec = startTs + offsetUsec - wwUsec;
-  SchBleCalcAdvOpDuration(pOp, 0);
-  pPerScanCtx->minDurUsec = pOp->minDurUsec;
-  uint16_t numUnsyncIntervals = 0;
-
-  while (TRUE)
-  {
-    if (SchInsertAtDueTime(pOp, lctrPerScanResolveConflict))
-    {
-      LL_TRACE_INFO1("    >>> Periodic scan from transfer started, handle=%u <<<", LCTR_GET_PER_SCAN_HANDLE(pPerScanCtx));
-      LL_TRACE_INFO1("                                             pOp=%08x", pOp);
-      LL_TRACE_INFO1("                                             dueUsec=%u", pOp->dueUsec);
-      LL_TRACE_INFO1("                                             eventCounter=%u", pPerScanCtx->eventCounter);
-      LL_TRACE_INFO1("                                             pBle->chan.chanIdx=%u", pBle->chan.chanIdx);
-      LL_TRACE_INFO1("                                             pBod=0x%08x", pOp);
-      break;
-    }
-
-    LL_TRACE_WARN0("!!! Start periodic scanning from transfer schedule conflict");
-
-    pPerScanCtx->eventCounter++;
-    pBle->chan.chanIdx = lctrPeriodicSelectNextChannel(&pPerScanCtx->chanParam, pPerScanCtx->eventCounter);
-    numUnsyncIntervals++;
-
-    uint32_t unsyncTimeUsec = pPerScanCtx->perInterUsec * numUnsyncIntervals;
-
-    dA = lctrCalcWindowWideningUsec((deltaPA + unsyncTimeUsec), (scaPpmA + scaPpmC));
-    wwUsec = 16 + lctrCalcWindowWideningUsec((dA + dB), (1 + scaPpmA + scaPpmB + scaPpmC));
-
-    /* Advance to next interval. */
-    pOp->dueUsec = pPerScanCtx->lastAnchorPointUsec + unsyncTimeUsec - wwUsec;
-    pOp->minDurUsec = pPerScanCtx->minDurUsec + wwUsec;
-    pBle->op.mstPerScan.rxSyncDelayUsec = pPerScanCtx->rxSyncDelayUsec + (wwUsec << 1);
-  }
-
-  /* Update topology manager information. */
-  SchTmAdd(LCTR_GET_PER_SCAN_TM_HANDLE(pPerScanCtx), pPerScanCtx->perInterUsec, pPerScanCtx->minDurUsec, FALSE, lctrGetPerScanRefTime);
+//  lctrConnCtx_t *pConnCtx = LCTR_GET_CONN_CTX(connHandle);
+//  BbOpDesc_t * const pConnOp = &pConnCtx->connBod;
+//  uint32_t refTime;
+//  uint16_t peC;       /* paEventCounter for the AUX_SYNC_IND PDU that we are attempting to receive. */
+//  uint32_t startTs;   /* Anchor point of the connection event. */
+//  uint16_t numInterval;
+//
+//  /* Pre-resolve common structures for efficient access. */
+//  lctrPerScanCtx_t *pPerScanCtx = lctrPerTransferSync.pPerScanCtx;
+//  BbOpDesc_t * const pOp = &pPerScanCtx->bod;
+//  BbBleData_t * const pBle = &pPerScanCtx->bleData;
+//
+//  /* reporting can be initially disabled. */
+//  if (pConnCtx->syncMode == LL_SYNC_TRSF_MODE_REP_DISABLED)
+//  {
+//    pPerScanCtx->repDisabled = TRUE;
+//  }
+//
+//  pPerScanCtx->syncTimeOutMs = LCTR_PER_SYNC_TIMEOUT_TO_MS(pConnCtx->syncTimeout);
+//  pPerScanCtx->skip = pConnCtx->syncSkip;
+//  pPerScanCtx->sca = trsfSyncInfo.sca;
+//
+//  /*** BLE General Setup for Channel ***/
+//
+//  pPerScanCtx->chanParam.chanMask = trsfSyncInfo.chanMap;
+//  pPerScanCtx->chanParam.usedChSel = LL_CH_SEL_2;
+//
+//  lctrPeriodicBuildRemapTable(&pPerScanCtx->chanParam);
+//  pPerScanCtx->chanParam.chIdentifier = (trsfSyncInfo.accAddr >> 16) ^
+//                                        (trsfSyncInfo.accAddr >> 0);
+//
+//  pBle->chan.accAddr = trsfSyncInfo.accAddr;
+//  pBle->chan.crcInit = trsfSyncInfo.crcInit;
+//  pBle->chan.txPhy = pBle->chan.rxPhy = pPerScanCtx->rxPhys;
+//
+//#if (LL_ENABLE_TESTER == TRUE)
+//  pBle->chan.accAddrRx = llTesterCb.advAccessAddrRx ^ pBle->chan.accAddr;
+//  pBle->chan.accAddrTx = llTesterCb.advAccessAddrTx ^ pBle->chan.accAddr;
+//  pBle->chan.crcInitRx = llTesterCb.advCrcInitRx ^ pBle->chan.crcInit;
+//  pBle->chan.crcInitTx = llTesterCb.advCrcInitTx ^ pBle->chan.crcInit;
+//#endif
+//
+//  /* Offset from ceRef to PEa(paEventCounter). */
+//  uint32_t offsetUsec = trsfSyncInfo.syncOffset * ((trsfSyncInfo.offsetUnits == LCTR_OFFS_UNITS_30_USEC) ? 30 : 300);
+//  offsetUsec += (LL_SYNC_OFFS_ADJUST_USEC * trsfSyncInfo.offsetAdjust);
+//
+//  /* Calculate reference time: ceRef + offset. */
+//  refTime = lctrConnGetAnchorPoint(pConnCtx, lctrPerTransferSync.ceRef);
+//  refTime += offsetUsec;
+//
+//  /* refTime needs to be future from the next connection event. */
+//  startTs = lctrConnGetAnchorPoint(pConnCtx, pConnCtx->eventCounter);
+//  peC = trsfSyncInfo.eventCounter;
+//
+//  if (BbGetTargetTimeDelta(refTime, startTs + pConnOp->minDurUsec) > 0)
+//  {
+//    numInterval = BbGetTargetTimeDelta(refTime, startTs + pConnOp->minDurUsec) / pPerScanCtx->perInterUsec;
+//    refTime -= numInterval * pPerScanCtx->perInterUsec;
+//    peC -= numInterval;
+//    offsetUsec = BbGetTargetTimeDelta(refTime , startTs);
+//  }
+//  else  /* refTime is in the past. */
+//  {
+//    numInterval = 1 + BbGetTargetTimeDelta(startTs + pConnOp->minDurUsec, refTime)/ pPerScanCtx->perInterUsec;
+//    refTime += numInterval * pPerScanCtx->perInterUsec;
+//    peC += numInterval;
+//    offsetUsec = BbGetTargetTimeDelta(refTime , startTs);
+//  }
+//
+//  pPerScanCtx->eventCounter = peC;
+//  pBle->chan.chanIdx = lctrPeriodicSelectNextChannel(&pPerScanCtx->chanParam, pPerScanCtx->eventCounter);
+//
+//  /* Total drift D = (Da + Db) x (1 + CAa + CAb + CAc)  */
+//  /* Da : Drift of the periodic advertising             */
+//  /* Db : Drift of B's clock between CEs and PEb        */
+//  uint16_t scaPpmA = (trsfSyncInfo.sca < LCTR_MAX_SCA) ? scaPpmTbl[trsfSyncInfo.sca] : scaPpmTbl[LCTR_MAX_SCA];
+//  uint16_t scaPpmB = (lctrPerTransferSync.scaB < LCTR_MAX_SCA) ? scaPpmTbl[lctrPerTransferSync.scaB] : scaPpmTbl[LCTR_MAX_SCA];
+//  uint16_t scaPpmC = BbGetClockAccuracy();
+//
+//  /* Da = |PEc – PEb| × PAI × (CAa + CAc) */
+//  uint32_t deltaPA = ((uint16_t)(peC - lctrPerTransferSync.lastPECounter) < LCTR_MAX_INSTANT) ? (uint16_t)(peC - lctrPerTransferSync.lastPECounter) : 0;
+//  deltaPA *= pPerScanCtx->perInterUsec;
+//  uint32_t dA = lctrCalcWindowWideningUsec(deltaPA, (scaPpmA + scaPpmC));
+//
+//  /* Db = |CEt – CEs| × CI × (CAb + CAc) */
+//  uint32_t deltaCE = ((uint16_t)(lctrPerTransferSync.ceRcvd - lctrPerTransferSync.syncCe) < LCTR_MAX_INSTANT) ? (uint16_t)(lctrPerTransferSync.ceRcvd - lctrPerTransferSync.syncCe) : 0;
+//  deltaCE *= LCTR_CONN_IND_US(pConnCtx->connInterval);
+//  uint32_t dB = lctrCalcWindowWideningUsec(deltaCE, (scaPpmB + scaPpmC));
+//
+//  uint32_t wwUsec = 16 + lctrCalcWindowWideningUsec((dA + dB), (1 + scaPpmA + scaPpmB + scaPpmC));
+//  pPerScanCtx->rxSyncDelayUsec = pBle->op.mstPerScan.rxSyncDelayUsec = (wwUsec << 1) + ((trsfSyncInfo.offsetUnits == LCTR_OFFS_UNITS_30_USEC) ? 30 : 300);    /* rounding compensation */
+//
+//  LL_TRACE_WARN3("Periodic scan transfer WW=%u: Da=%u, Db=%u", wwUsec, dA, dB);
+//
+//  pPerScanCtx->lastAnchorPointUsec = startTs + offsetUsec;
+//  pPerScanCtx->lastActiveEvent = pPerScanCtx->eventCounter;
+//  pPerScanCtx->initEventCounter = pPerScanCtx->eventCounter;
+//
+//  pOp->dueUsec = startTs + offsetUsec - wwUsec;
+//  SchBleCalcAdvOpDuration(pOp, 0);
+//  pPerScanCtx->minDurUsec = pOp->minDurUsec;
+//  uint16_t numUnsyncIntervals = 0;
+//
+//  while (TRUE)
+//  {
+//    if (SchInsertAtDueTime(pOp, lctrPerScanResolveConflict))
+//    {
+//      LL_TRACE_INFO1("    >>> Periodic scan from transfer started, handle=%u <<<", LCTR_GET_PER_SCAN_HANDLE(pPerScanCtx));
+//      LL_TRACE_INFO1("                                             pOp=%08x", pOp);
+//      LL_TRACE_INFO1("                                             dueUsec=%u", pOp->dueUsec);
+//      LL_TRACE_INFO1("                                             eventCounter=%u", pPerScanCtx->eventCounter);
+//      LL_TRACE_INFO1("                                             pBle->chan.chanIdx=%u", pBle->chan.chanIdx);
+//      LL_TRACE_INFO1("                                             pBod=0x%08x", pOp);
+//      break;
+//    }
+//
+//    LL_TRACE_WARN0("!!! Start periodic scanning from transfer schedule conflict");
+//
+//    pPerScanCtx->eventCounter++;
+//    pBle->chan.chanIdx = lctrPeriodicSelectNextChannel(&pPerScanCtx->chanParam, pPerScanCtx->eventCounter);
+//    numUnsyncIntervals++;
+//
+//    uint32_t unsyncTimeUsec = pPerScanCtx->perInterUsec * numUnsyncIntervals;
+//
+//    dA = lctrCalcWindowWideningUsec((deltaPA + unsyncTimeUsec), (scaPpmA + scaPpmC));
+//    wwUsec = 16 + lctrCalcWindowWideningUsec((dA + dB), (1 + scaPpmA + scaPpmB + scaPpmC));
+//
+//    /* Advance to next interval. */
+//    pOp->dueUsec = pPerScanCtx->lastAnchorPointUsec + unsyncTimeUsec - wwUsec;
+//    pOp->minDurUsec = pPerScanCtx->minDurUsec + wwUsec;
+//    pBle->op.mstPerScan.rxSyncDelayUsec = pPerScanCtx->rxSyncDelayUsec + (wwUsec << 1);
+//  }
+//
+//  /* Update topology manager information. */
+//  SchTmAdd(LCTR_GET_PER_SCAN_TM_HANDLE(pPerScanCtx), pPerScanCtx->perInterUsec, pPerScanCtx->minDurUsec, FALSE, lctrGetPerScanRefTime);
 }
 
 /*************************************************************************************************/
