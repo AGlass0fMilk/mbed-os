@@ -1212,8 +1212,12 @@ ble_error_t Gap::reset()
 
     _event_handler = nullptr;
     _initiating = false;
+
+#if BLE_ROLE_OBSERVER
     set_scan_state(ScanState::idle);
     _scan_requested = false;
+#endif
+
 #if BLE_FEATURE_PRIVACY
     _privacy_initialization_pending = false;
 #if BLE_GAP_HOST_BASED_PRIVATE_ADDRESS_RESOLUTION
